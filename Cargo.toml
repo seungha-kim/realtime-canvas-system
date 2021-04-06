@@ -2,6 +2,7 @@
 members = [
     "system",
     "wasm",
+    "web",
 ]
 
 [profile.release]

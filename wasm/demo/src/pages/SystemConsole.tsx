@@ -26,24 +26,24 @@ function getLocalPos(e: any): {x: number, y: number} {
 
 function SystemConsole() {
     const system = useSystem()
-    const [drawing, setDrawing] = useState<{x: number, y: number} | null>(null)
+    const prevPosRef = useRef<{x: number, y: number} | null>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
 
     const handleMouseDown = useCallback(e => {
         console.log("mouse down")
         const {x, y} = getLocalPos(e);
-        setDrawing({x, y});
+        prevPosRef.current = {x, y};
     }, [])
 
     const handleMouseUp = useCallback(e => {
         console.log("mouse up")
-        setDrawing(null);
+        prevPosRef.current = null;
     }, [])
 
     const handleMouseMove = useCallback(e => {
-        if (system && drawing) {
+        if (system && prevPosRef.current) {
             const {x, y} = getLocalPos(e);
-            const buf = system.translate_from_json(JSON.stringify({Fragment: {x1: drawing.x, y1: drawing.y, x2: x, y2: y}}));
+            const buf = system.translate_from_json(JSON.stringify({Fragment: {x1: prevPosRef.current.x, y1: prevPosRef.current.y, x2: x, y2: y}}));
             const json = JSON.parse(system.translate_to_json(buf));
             if (json.Fragment) {
                 const ctx = canvasRef.current.getContext('2d');
@@ -51,9 +51,9 @@ function SystemConsole() {
                 ctx.lineTo(json.Fragment.x2, json.Fragment.y2);
                 ctx.stroke();
             }
-            setDrawing({x, y});
+            prevPosRef.current = {x, y};
         }
-    }, [system, drawing])
+    }, [system])
 
     if (!system) {
         return <div>Loading</div>
