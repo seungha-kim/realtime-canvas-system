@@ -27,7 +27,22 @@ function getLocalPos(e: any): {x: number, y: number} {
 function SystemConsole() {
     const system = useSystem()
     const prevPosRef = useRef<{x: number, y: number} | null>(null)
+    const wsRef = useRef<WebSocket>()
     const canvasRef = useRef<HTMLCanvasElement>(null)
+
+    useEffect(() => {
+        if (!system) return
+        const ws = new WebSocket('ws://localhost:8080/ws/')
+        ws.binaryType = 'arraybuffer'
+        ws.onclose = ws.onerror = ws.onmessage = ws.onopen = console.log
+        wsRef.current = ws
+        ws.addEventListener('message', e => {
+            const buf = new Uint8Array(e.data)
+            const json = system.translate_to_json(buf);
+            const parsed = JSON.parse(json);
+            draw(parsed)
+        })
+    }, [system])
 
     const handleMouseDown = useCallback(e => {
         console.log("mouse down")
@@ -40,18 +55,34 @@ function SystemConsole() {
         prevPosRef.current = null;
     }, [])
 
+    const sendFragment = useCallback((x: number, y: number) => {
+        const json = JSON.stringify({
+            Fragment: {
+                x1: prevPosRef.current.x,
+                y1: prevPosRef.current.y,
+                x2: x,
+                y2: y
+            }
+        })
+        const buf = system.translate_from_json(json);
+        wsRef.current?.send(buf)
+    }, [system])
+
+    const draw = useCallback((parsed: any) => {
+        if (parsed.Fragment) {
+            const {x1, y1, x2, y2} = parsed.Fragment;
+            const ctx = canvasRef.current.getContext('2d');
+            ctx.moveTo(x1, y1);
+            ctx.lineTo(x2, y2);
+            ctx.stroke();
+            prevPosRef.current = {x: x2, y: y2};
+        }
+    }, [])
+
     const handleMouseMove = useCallback(e => {
         if (system && prevPosRef.current) {
             const {x, y} = getLocalPos(e);
-            const buf = system.translate_from_json(JSON.stringify({Fragment: {x1: prevPosRef.current.x, y1: prevPosRef.current.y, x2: x, y2: y}}));
-            const json = JSON.parse(system.translate_to_json(buf));
-            if (json.Fragment) {
-                const ctx = canvasRef.current.getContext('2d');
-                ctx.moveTo(json.Fragment.x1, json.Fragment.y1);
-                ctx.lineTo(json.Fragment.x2, json.Fragment.y2);
-                ctx.stroke();
-            }
-            prevPosRef.current = {x, y};
+            sendFragment(x, y);
         }
     }, [system])
 
