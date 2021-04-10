@@ -78,6 +78,11 @@ function SystemConsole(props: Props) {
     [system]
   );
 
+  const handleLeave = useCallback(async () => {
+    await system.leaveSession();
+    props.onLeave();
+  }, [system]);
+
   if (!system) {
     return <div>Loading</div>;
   } else {
@@ -92,7 +97,7 @@ function SystemConsole(props: Props) {
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
         />
-        <button onClick={props.onLeave}>Leave</button>
+        <button onClick={handleLeave}>Leave</button>
       </div>
     );
   }
