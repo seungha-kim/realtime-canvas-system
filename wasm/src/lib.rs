@@ -1,7 +1,7 @@
 mod utils;
 
+use system::{bincode, serde_json, SystemCommand, SystemEvent};
 use wasm_bindgen::prelude::*;
-use system::{bincode, serde_json, Command};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -23,16 +23,26 @@ impl CanvasSystem {
     pub fn new() -> Self {
         utils::set_panic_hook();
 
-        CanvasSystem { }
+        CanvasSystem {}
     }
 
-    pub fn translate_to_json(&self, bytes: &[u8]) -> String {
-        let command = bincode::deserialize::<Command>(bytes).unwrap();
+    pub fn translate_command_to_json(&self, bytes: &[u8]) -> String {
+        let command = bincode::deserialize::<SystemCommand>(bytes).unwrap();
         serde_json::to_string(&command).unwrap()
     }
 
-    pub fn translate_from_json(&self, json: String) -> Box<[u8]> {
-        let command = serde_json::from_str::<Command>(&json).unwrap();
+    pub fn translate_command_from_json(&self, json: String) -> Box<[u8]> {
+        let command = serde_json::from_str::<SystemCommand>(&json).unwrap();
+        bincode::serialize(&command).unwrap().into_boxed_slice()
+    }
+
+    pub fn translate_event_to_json(&self, bytes: &[u8]) -> String {
+        let command = bincode::deserialize::<SystemEvent>(bytes).unwrap();
+        serde_json::to_string(&command).unwrap()
+    }
+
+    pub fn translate_event_from_json(&self, json: String) -> Box<[u8]> {
+        let command = serde_json::from_str::<SystemEvent>(&json).unwrap();
         bincode::serialize(&command).unwrap().into_boxed_slice()
     }
 
