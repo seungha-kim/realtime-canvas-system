@@ -1,6 +1,7 @@
 import * as React from 'react'
 import {useCallback, useEffect, useRef, useState} from "react";
 import {Fragment, SystemEventData, SystemFacade} from "../SystemFacade";
+import {useSystemFacade} from "../contexts/SystemFacadeContext";
 
 function getLocalPos(e: any): {x: number, y: number} {
     const rect = e.target.getBoundingClientRect();
@@ -9,20 +10,30 @@ function getLocalPos(e: any): {x: number, y: number} {
     return {x, y};
 }
 
-function SystemConsole() {
-    const [system] = useState(() => new SystemFacade('ws://localhost:8080/ws/'))
+type Props = {
+    onLeave: () => void
+}
+
+function SystemConsole(props: Props) {
+    const system = useSystemFacade()
     const prevPosRef = useRef<{x: number, y: number} | null>(null)
     const canvasRef = useRef<HTMLCanvasElement>(null)
 
     useEffect(() => {
         window.system = system;
 
-        system.addEventListener('system', (e: any) => {
+        const handler = (e: any) => {
             const data = e.data as SystemEventData;
             if (data.SessionEvent?.Fragment) {
                 draw(data.SessionEvent.Fragment)
             }
-        })
+        }
+
+        system.addEventListener('system', handler)
+
+        return () => {
+            system.removeEventListener('system', handler)
+        }
     }, [system])
 
     const handleMouseDown = useCallback(e => {
@@ -67,6 +78,7 @@ function SystemConsole() {
         return <div>
             <canvas ref={canvasRef} width={100} height={100} style={{width:100, height:100, border: '1px solid silver'}}
             onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} />
+            <button onClick={props.onLeave}>Leave</button>
         </div>
     }
 }
