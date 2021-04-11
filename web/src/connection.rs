@@ -4,7 +4,7 @@ use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use system::{bincode, IdentifiableCommand, IdentifiableEvent};
+use system::{bincode, IdentifiableCommand, IdentifiableEvent, SystemError};
 use system::{ConnectionId, SystemCommand, SystemEvent};
 
 #[derive(Debug)]
@@ -124,8 +124,8 @@ impl Handler<ConnectionActorMessage> for ConnectionActor {
                     self.state = ConnectionState::Connected(*connection_id);
                 }
                 ConnectionEvent::Disconnected { connection_id } => {
-                    // TODO: disconnect
-                    ctx.stop();
+                    // TODO: reason
+                    ctx.close(None);
                 }
                 ConnectionEvent::IdentifiableEvent(event) => {
                     // TODO: unwrap

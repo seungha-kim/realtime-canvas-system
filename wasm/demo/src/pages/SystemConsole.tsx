@@ -37,13 +37,11 @@ function SystemConsole(props: Props) {
   }, [system]);
 
   const handleMouseDown = useCallback((e) => {
-    console.log("mouse down");
     const { x, y } = getLocalPos(e);
     prevPosRef.current = { x, y };
   }, []);
 
   const handleMouseUp = useCallback((e) => {
-    console.log("mouse up");
     prevPosRef.current = null;
   }, []);
 
@@ -79,7 +77,7 @@ function SystemConsole(props: Props) {
   );
 
   const handleLeave = useCallback(async () => {
-    console.log(await system.leaveSession());
+    await system.leaveSession();
     props.onLeave();
   }, [system]);
 

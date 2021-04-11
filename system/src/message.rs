@@ -1,11 +1,24 @@
 use super::types::*;
 use serde::{Deserialize, Serialize};
 
+// FIXME: 서버 측 ConnectionCommand 가 Debug 를 필요로 함
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SystemError {
+    InvalidSessionId,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum CommandResult {
+    SystemEvent(SystemEvent),
+    Error(SystemError),
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub enum IdentifiableEvent {
     ByMyself {
         command_id: CommandId,
-        system_event: SystemEvent,
+        result: CommandResult,
     },
     BySystem {
         system_event: SystemEvent,

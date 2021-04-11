@@ -27,7 +27,10 @@ type SystemCommand = {
 interface IdentifiableEvent {
   ByMyself?: {
     command_id: number;
-    system_event: SystemEvent;
+    result: {
+      SystemEvent?: SystemEvent;
+      Error?: any;
+    };
   };
   BySystem?: {
     system_event: SystemEvent;
@@ -43,7 +46,10 @@ class SystemFacadeEvent extends Event {
   }
 }
 
-type CommandResolver = (value: SystemEvent) => void;
+type CommandResolver = {
+  resolve: (value: SystemEvent) => void;
+  reject: (error: any) => void;
+};
 
 export class SystemFacade extends EventTarget {
   private system: Promise<CanvasSystem>;
@@ -65,18 +71,7 @@ export class SystemFacade extends EventTarget {
       const buf = new Uint8Array(e.data);
       const json = (await this.system).convert_event_to_json(buf);
       const parsed: IdentifiableEvent = JSON.parse(json);
-      const systemEvent =
-        parsed.BySystem?.system_event ?? parsed.ByMyself?.system_event!;
-      this.dispatchEvent(new SystemFacadeEvent("system", systemEvent));
-      if (
-        parsed.ByMyself &&
-        this.commandResolverRegistry.has(parsed.ByMyself.command_id)
-      ) {
-        const commandId = parsed.ByMyself.command_id;
-        const resolver = this.commandResolverRegistry.get(commandId)!;
-        this.commandResolverRegistry.delete(commandId);
-        resolver(systemEvent);
-      }
+      this.handleIdentifiableEvent(parsed);
     });
   }
 
@@ -116,14 +111,15 @@ export class SystemFacade extends EventTarget {
     command: SystemCommand,
     registerCommandResolver = true
   ): Promise<SystemEvent | void> {
+    SystemFacade.logCommand(command);
     const commandBuf = (await this.system).create_command(
       JSON.stringify(command)
     );
     this.ws.send(commandBuf);
     if (registerCommandResolver) {
       const commandId = (await this.system).last_command_id();
-      return new Promise((resolve) => {
-        this.registerCommandResolver(commandId, resolve);
+      return new Promise((resolve, reject) => {
+        this.registerCommandResolver(commandId, { resolve, reject });
       });
     }
   }
@@ -131,5 +127,62 @@ export class SystemFacade extends EventTarget {
   private registerCommandResolver(commandId: number, resolve: CommandResolver) {
     // TODO: timeout
     this.commandResolverRegistry.set(commandId, resolve);
+  }
+
+  private handleIdentifiableEvent(event: IdentifiableEvent) {
+    SystemFacade.logEvent(event);
+    const systemEvent =
+      event.BySystem?.system_event ??
+      event.ByMyself?.result?.SystemEvent ??
+      null;
+    if (systemEvent) {
+      this.dispatchEvent(new SystemFacadeEvent("system", systemEvent));
+    }
+
+    if (
+      event.ByMyself &&
+      this.commandResolverRegistry.has(event.ByMyself.command_id)
+    ) {
+      const commandId = event.ByMyself.command_id;
+      const resolver = this.commandResolverRegistry.get(commandId)!;
+      this.commandResolverRegistry.delete(commandId);
+      if (systemEvent) {
+        resolver.resolve(systemEvent);
+      } else {
+        resolver.reject(event.ByMyself.result.Error);
+      }
+    }
+  }
+
+  private static logCommand(command: SystemCommand) {
+    if (process.env.NODE_ENV == "production") {
+      return;
+    }
+    if (command.SessionCommand?.Fragment) {
+      console.debug(this.formatJson(command));
+    } else {
+      console.info(this.formatJson(command));
+    }
+  }
+
+  private static logEvent(event: IdentifiableEvent) {
+    if (process.env.NODE_ENV == "production") {
+      return;
+    }
+    const error = event.ByMyself?.result.Error;
+    const systemEvent =
+      event.ByMyself?.result?.SystemEvent ?? event.BySystem?.system_event;
+    if (error) {
+      console.error(this.formatJson(event));
+    }
+    if (systemEvent?.SessionEvent?.Fragment) {
+      console.debug(this.formatJson(event));
+    } else {
+      console.info(this.formatJson(event));
+    }
+  }
+
+  private static formatJson(obj: any) {
+    return JSON.stringify(obj, null, 2);
   }
 }

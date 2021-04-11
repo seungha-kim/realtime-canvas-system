@@ -11,14 +11,18 @@ function Lobby(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleCreate = useCallback(async () => {
-    console.log(await system.createSession());
+    await system.createSession();
     props.onJoin();
   }, [system]);
 
   const handleJoin = useCallback(async () => {
     const sessionId = parseInt(inputRef.current!.value, 10);
-    console.log(await system.joinSession(sessionId));
-    props.onJoin();
+    try {
+      await system.joinSession(sessionId);
+      props.onJoin();
+    } catch (e) {
+      alert(e);
+    }
   }, [system]);
 
   return (
