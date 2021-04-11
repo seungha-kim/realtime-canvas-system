@@ -1,8 +1,7 @@
 use actix_web::{web, App, HttpRequest, HttpServer, Responder};
+
 use realtime_canvas_web::connection::ws_index;
 use realtime_canvas_web::server::spawn_server;
-use std::sync::atomic::AtomicUsize;
-use std::sync::Arc;
 
 async fn greet(req: HttpRequest) -> impl Responder {
     let name = req.match_info().get("name").unwrap_or("World");

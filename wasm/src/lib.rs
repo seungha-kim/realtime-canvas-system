@@ -1,10 +1,12 @@
-mod utils;
+use std::num::Wrapping;
+
+use wasm_bindgen::prelude::*;
 
 use system::{
     bincode, serde_json, CommandId, IdentifiableCommand, IdentifiableEvent, SystemCommand,
 };
-use wasm_bindgen::__rt::core::num::Wrapping;
-use wasm_bindgen::prelude::*;
+
+mod utils;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.

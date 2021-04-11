@@ -1,11 +1,14 @@
-use super::connection::{ConnectionCommand, ConnectionEvent};
 use std::collections::HashMap;
 use std::num::Wrapping;
+
+use tokio::sync::mpsc::{channel, Sender};
+
 use system::{
     CommandId, CommandResult, ConnectionId, IdentifiableCommand, IdentifiableEvent, SessionCommand,
     SessionEvent, SessionId, SystemCommand, SystemError, SystemEvent,
 };
-use tokio::sync::mpsc::{channel, Sender};
+
+use super::connection::{ConnectionCommand, ConnectionEvent};
 
 pub type ServerTx = Sender<ConnectionCommand>;
 pub type ConnectionTx = tokio::sync::mpsc::Sender<ConnectionEvent>;
@@ -23,6 +26,7 @@ struct ServerState {
     sessions: HashMap<SessionId, Vec<ConnectionId>>,
 }
 
+#[derive(Debug)]
 enum ServerError {
     SystemError(SystemError),
     InvalidCommandForState,
@@ -50,7 +54,7 @@ impl ServerState {
     fn create_session(&mut self, by: &ConnectionId) -> SessionId {
         let session_id = self.new_session_id();
         self.sessions.insert(session_id, Vec::new());
-        self.join_session(by, &session_id);
+        self.join_session(by, &session_id).unwrap();
         session_id
     }
 
@@ -78,16 +82,6 @@ impl ServerState {
         }
     }
 
-    fn get_current_session(&self, connection_id: &ConnectionId) -> Option<SessionId> {
-        if let Some(ConnectionState::Joined(session_id)) =
-            self.connection_states.get(&connection_id)
-        {
-            Some(session_id.clone())
-        } else {
-            None
-        }
-    }
-
     fn leave_session(&mut self, connection_id: &ConnectionId) -> Result<(), ()> {
         if let Some(ConnectionState::Joined(session_id)) =
             self.connection_states.get(&connection_id)
@@ -105,7 +99,7 @@ impl ServerState {
     }
 
     fn disconnect(&mut self, connection_id: &ConnectionId) {
-        self.leave_session(connection_id);
+        let _ = self.leave_session(connection_id);
         self.connection_states.remove(&connection_id);
     }
 
@@ -147,7 +141,7 @@ impl ConnectionTxStorage {
 
     async fn send(&mut self, to: &ConnectionId, message: ConnectionEvent) {
         if let Some(tx) = self.connection_txs.get_mut(&to) {
-            tx.send(message).await;
+            tx.send(message).await.unwrap(); // FIXME: unwrap
         } else {
             // TODO: WARN
         }
@@ -186,7 +180,8 @@ impl Server {
                     tx.send(ConnectionEvent::Disconnected {
                         connection_id: from.clone(),
                     })
-                    .await;
+                    .await
+                    .unwrap(); // FIXME: unwrap
                 };
             }
             ConnectionCommand::IdentifiableCommand {

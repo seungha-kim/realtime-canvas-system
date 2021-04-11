@@ -1,11 +1,10 @@
-use crate::server::{ConnectionTx, ServerTx};
 use actix::{Actor, ActorContext, AsyncContext, Handler, Message, Running, StreamHandler};
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use system::{bincode, IdentifiableCommand, IdentifiableEvent, SystemError};
-use system::{ConnectionId, SystemCommand, SystemEvent};
+
+use system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent};
+
+use crate::server::{ConnectionTx, ServerTx};
 
 #[derive(Debug)]
 pub enum ConnectionCommand {
@@ -55,10 +54,10 @@ impl Actor for ConnectionActor {
         let addr = ctx.address().recipient();
 
         tokio::spawn(async move {
-            let mut addr = addr;
+            let addr = addr;
             println!("connection green thread - started");
             while let Some(msg) = rx.recv().await {
-                addr.try_send(ConnectionActorMessage(msg));
+                addr.try_send(ConnectionActorMessage(msg)).unwrap(); // FIXME: unwrap
             }
             println!("connection green thread - terminated");
         });
@@ -117,21 +116,20 @@ impl Handler<ConnectionActorMessage> for ConnectionActor {
         msg: ConnectionActorMessage,
         ctx: &mut ws::WebsocketContext<Self>,
     ) -> Self::Result {
-        if let ConnectionActorMessage(ref connection_event) = msg {
-            println!("Egress {:?}", connection_event);
-            match connection_event {
-                ConnectionEvent::Connected { connection_id } => {
-                    self.state = ConnectionState::Connected(*connection_id);
-                }
-                ConnectionEvent::Disconnected { connection_id } => {
-                    // TODO: reason
-                    ctx.close(None);
-                }
-                ConnectionEvent::IdentifiableEvent(event) => {
-                    // TODO: unwrap
-                    let serialized = bincode::serialize(event).unwrap();
-                    ctx.binary(serialized);
-                }
+        let connection_event = &msg.0;
+        println!("Egress {:?}", connection_event);
+        match connection_event {
+            ConnectionEvent::Connected { connection_id } => {
+                self.state = ConnectionState::Connected(*connection_id);
+            }
+            ConnectionEvent::Disconnected { .. } => {
+                // TODO: reason
+                ctx.close(None);
+            }
+            ConnectionEvent::IdentifiableEvent(event) => {
+                // TODO: unwrap
+                let serialized = bincode::serialize(event).unwrap();
+                ctx.binary(serialized);
             }
         }
     }
