@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef } from "react";
 import { useSystemFacade } from "../contexts/SystemFacadeContext";
 
 type Props = {
@@ -11,12 +11,13 @@ function Lobby(props: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleCreate = useCallback(async () => {
-    await system.createSession();
+    console.log(await system.createSession());
     props.onJoin();
   }, [system]);
 
   const handleJoin = useCallback(async () => {
-    await system.joinSession(parseInt(inputRef.current!.value, 10));
+    const sessionId = parseInt(inputRef.current!.value, 10);
+    console.log(await system.joinSession(sessionId));
     props.onJoin();
   }, [system]);
 

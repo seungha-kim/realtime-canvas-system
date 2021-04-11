@@ -9,26 +9,46 @@ export interface Fragment {
   y2: number;
 }
 
-export interface SystemEventData {
+export type SystemEvent = {
   JoinedSession?: { session_id: number };
   LeftSession?: null;
   SessionEvent?: {
     Fragment?: Fragment;
   };
+};
+
+type SystemCommand = {
+  CreateSession?: null;
+  JoinSession?: { session_id: number };
+  LeaveSession?: null;
+  SessionCommand?: { Fragment: Fragment };
+};
+
+interface IdentifiableEvent {
+  ByMyself?: {
+    command_id: number;
+    system_event: SystemEvent;
+  };
+  BySystem?: {
+    system_event: SystemEvent;
+  };
 }
 
-export class SystemEvent extends Event {
-  data: SystemEventData;
+class SystemFacadeEvent extends Event {
+  data: SystemEvent;
 
-  constructor(type: string, data: SystemEventData) {
+  constructor(type: string, data: SystemEvent) {
     super(type);
     this.data = data;
   }
 }
 
+type CommandResolver = (value: SystemEvent) => void;
+
 export class SystemFacade extends EventTarget {
   private system: Promise<CanvasSystem>;
   private ws: WebSocket;
+  private commandResolverRegistry: Map<number, CommandResolver> = new Map();
 
   constructor(url: string) {
     super();
@@ -43,52 +63,73 @@ export class SystemFacade extends EventTarget {
     // this.ws.onopen = this.ws.onmessage = this.ws.onerror = this.ws.onclose = console.log
     this.ws.addEventListener("message", async (e) => {
       const buf = new Uint8Array(e.data);
-      const json = (await this.system).translate_event_to_json(buf);
-      const data: SystemEventData = JSON.parse(json);
-      this.dispatchEvent(new SystemEvent("system", data));
+      const json = (await this.system).convert_event_to_json(buf);
+      const parsed: IdentifiableEvent = JSON.parse(json);
+      const systemEvent =
+        parsed.BySystem?.system_event ?? parsed.ByMyself?.system_event!;
+      this.dispatchEvent(new SystemFacadeEvent("system", systemEvent));
+      if (
+        parsed.ByMyself &&
+        this.commandResolverRegistry.has(parsed.ByMyself.command_id)
+      ) {
+        const commandId = parsed.ByMyself.command_id;
+        const resolver = this.commandResolverRegistry.get(commandId)!;
+        this.commandResolverRegistry.delete(commandId);
+        resolver(systemEvent);
+      }
     });
   }
 
-  async createSession() {
-    // TODO: check status
-    return this.ws.send(
-      (await this.system).translate_command_from_json(
-        JSON.stringify({
-          CreateSession: null,
-        })
-      )
+  async createSession(): Promise<SystemEvent> {
+    return this.sendCommand({
+      CreateSession: null,
+    });
+  }
+
+  async joinSession(sessionId: number): Promise<SystemEvent> {
+    return this.sendCommand({
+      JoinSession: { session_id: sessionId },
+    });
+  }
+
+  async leaveSession(): Promise<SystemEvent> {
+    return this.sendCommand({
+      LeaveSession: null,
+    });
+  }
+
+  async sendFragment(fragment: Fragment): Promise<void> {
+    return this.sendCommand(
+      {
+        SessionCommand: { Fragment: fragment },
+      },
+      false
     );
   }
 
-  async joinSession(sessionId: number) {
-    // TODO: check status
-    return this.ws.send(
-      (await this.system).translate_command_from_json(
-        JSON.stringify({
-          JoinSession: { session_id: sessionId },
-        })
-      )
+  private async sendCommand(command: SystemCommand): Promise<SystemEvent>;
+  private async sendCommand(
+    command: SystemCommand,
+    registerCommandResolver: false
+  ): Promise<void>;
+  private async sendCommand(
+    command: SystemCommand,
+    registerCommandResolver = true
+  ): Promise<SystemEvent | void> {
+    const commandBuf = (await this.system).create_command(
+      JSON.stringify(command)
     );
+    this.ws.send(commandBuf);
+    if (registerCommandResolver) {
+      const commandId = (await this.system).last_command_id();
+      return new Promise((resolve) => {
+        this.registerCommandResolver(commandId, resolve);
+      });
+    }
   }
 
-  async leaveSession() {
-    // TODO: check status
-    return this.ws.send(
-      (await this.system).translate_command_from_json(
-        JSON.stringify({
-          LeaveSession: null,
-        })
-      )
-    );
-  }
-
-  async sendFragment(fragment: Fragment) {
-    return this.ws.send(
-      (await this.system).translate_command_from_json(
-        JSON.stringify({
-          SessionCommand: { Fragment: fragment },
-        })
-      )
-    );
+  private registerCommandResolver(commandId: number, resolve: CommandResolver) {
+    // TODO: timeout
+    this.commandResolverRegistry.set(commandId, resolve);
   }
 }

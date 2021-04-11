@@ -4,7 +4,7 @@ use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use system::bincode;
+use system::{bincode, IdentifiableCommand, IdentifiableEvent};
 use system::{ConnectionId, SystemCommand, SystemEvent};
 
 #[derive(Debug)]
@@ -15,16 +15,16 @@ pub enum ConnectionCommand {
     Disconnect {
         from: ConnectionId,
     },
-    SystemCommand {
+    IdentifiableCommand {
         from: ConnectionId,
-        system_command: SystemCommand,
+        command: IdentifiableCommand,
     },
 }
 
 #[derive(Debug)]
 pub enum ConnectionEvent {
     Connected { connection_id: ConnectionId },
-    SystemEvent(SystemEvent),
+    IdentifiableEvent(IdentifiableEvent),
     Disconnected { connection_id: ConnectionId },
 }
 
@@ -86,13 +86,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ConnectionActor {
                 // TODO: 버퍼 넘치면 실패함
                 if let ConnectionState::Connected(from) = self.state {
                     // TODO: unwrap
-                    let system_command = bincode::deserialize::<SystemCommand>(&bin).unwrap();
-                    println!("Ingress {:?}", system_command);
+                    let command = bincode::deserialize::<IdentifiableCommand>(&bin).unwrap();
+                    println!("Ingress {:?}", command);
                     self.srv_tx
-                        .try_send(ConnectionCommand::SystemCommand {
-                            from,
-                            system_command,
-                        })
+                        .try_send(ConnectionCommand::IdentifiableCommand { from, command })
                         .unwrap();
                 }
             }
@@ -130,9 +127,9 @@ impl Handler<ConnectionActorMessage> for ConnectionActor {
                     // TODO: disconnect
                     ctx.stop();
                 }
-                ConnectionEvent::SystemEvent(system_event) => {
+                ConnectionEvent::IdentifiableEvent(event) => {
                     // TODO: unwrap
-                    let serialized = bincode::serialize(system_event).unwrap();
+                    let serialized = bincode::serialize(event).unwrap();
                     ctx.binary(serialized);
                 }
             }

@@ -1,17 +1,21 @@
 use super::types::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Fragment {
-    x1: f32,
-    y1: f32,
-    x2: f32,
-    y2: f32,
+#[derive(Debug, Serialize, Deserialize)]
+pub enum IdentifiableEvent {
+    ByMyself {
+        command_id: CommandId,
+        system_event: SystemEvent,
+    },
+    BySystem {
+        system_event: SystemEvent,
+    },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum SessionCommand {
-    Fragment(Fragment),
+pub struct IdentifiableCommand {
+    pub command_id: CommandId,
+    pub system_command: SystemCommand,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -24,9 +28,15 @@ pub enum SystemCommand {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SystemEvent {
+    Connected { connection_id: ConnectionId },
     JoinedSession { session_id: SessionId },
     LeftSession,
     SessionEvent(SessionEvent),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SessionCommand {
+    Fragment(Fragment),
 }
 
 #[derive(Debug, Serialize, Deserialize)]

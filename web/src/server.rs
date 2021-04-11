@@ -1,6 +1,10 @@
 use super::connection::{ConnectionCommand, ConnectionEvent};
 use std::collections::HashMap;
-use system::{ConnectionId, SessionCommand, SessionEvent, SessionId, SystemCommand, SystemEvent};
+use std::num::Wrapping;
+use system::{
+    ConnectionId, IdentifiableCommand, IdentifiableEvent, SessionCommand, SessionEvent, SessionId,
+    SystemCommand, SystemEvent,
+};
 use tokio::sync::mpsc::{channel, Sender};
 
 pub type ServerTx = Sender<ConnectionCommand>;
@@ -12,20 +16,20 @@ enum ConnectionState {
 }
 
 struct Server {
-    connection_id_source: usize,
+    connection_id_source: Wrapping<ConnectionId>,
     connection_states: HashMap<ConnectionId, ConnectionState>,
 
-    session_id_source: usize,
+    session_id_source: Wrapping<SessionId>,
     sessions: HashMap<SessionId, Vec<ConnectionId>>,
 }
 
 impl Server {
     fn new() -> Self {
         Self {
-            connection_id_source: 0,
+            connection_id_source: Wrapping(0),
             connection_states: HashMap::new(),
 
-            session_id_source: 0,
+            session_id_source: Wrapping(0),
             sessions: HashMap::new(),
         }
     }
@@ -75,13 +79,13 @@ impl Server {
     }
 
     fn new_connection_id(&mut self) -> ConnectionId {
-        self.connection_id_source += 1;
-        self.connection_id_source
+        self.connection_id_source += Wrapping(1);
+        self.connection_id_source.0
     }
 
     fn new_session_id(&mut self) -> SessionId {
-        self.session_id_source += 1;
-        self.session_id_source
+        self.session_id_source += Wrapping(1);
+        self.session_id_source.0
     }
 
     fn connection_ids_in_session(&self, session_id: SessionId) -> Option<&[ConnectionId]> {
@@ -145,17 +149,22 @@ pub fn spawn_server() -> ServerTx {
                         .await;
                     };
                 }
-                ConnectionCommand::SystemCommand {
+                ConnectionCommand::IdentifiableCommand {
                     from,
-                    system_command,
+                    command:
+                        IdentifiableCommand {
+                            command_id,
+                            system_command,
+                        },
                 } => match system_command {
                     SystemCommand::CreateSession => {
                         let session_id = server.create_session(from);
                         connections
                             .send(
                                 from,
-                                ConnectionEvent::SystemEvent(SystemEvent::JoinedSession {
-                                    session_id,
+                                ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
+                                    command_id,
+                                    system_event: SystemEvent::JoinedSession { session_id },
                                 }),
                             )
                             .await;
@@ -165,8 +174,9 @@ pub fn spawn_server() -> ServerTx {
                         connections
                             .send(
                                 from,
-                                ConnectionEvent::SystemEvent(SystemEvent::JoinedSession {
-                                    session_id,
+                                ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
+                                    command_id,
+                                    system_event: SystemEvent::JoinedSession { session_id },
                                 }),
                             )
                             .await;
@@ -182,18 +192,20 @@ pub fn spawn_server() -> ServerTx {
                                         server.connection_ids_in_session(*session_id)
                                     {
                                         for connection_id in conns {
-                                            connections
-                                                .send(
-                                                    *connection_id,
-                                                    ConnectionEvent::SystemEvent(
-                                                        SystemEvent::SessionEvent(
-                                                            SessionEvent::Fragment(
-                                                                fragment.clone(),
-                                                            ),
-                                                        ),
-                                                    ),
-                                                )
-                                                .await;
+                                            let system_event = SystemEvent::SessionEvent(
+                                                SessionEvent::Fragment(fragment.clone()),
+                                            );
+                                            let event = ConnectionEvent::IdentifiableEvent(
+                                                if connection_id == &from {
+                                                    IdentifiableEvent::ByMyself {
+                                                        command_id,
+                                                        system_event,
+                                                    }
+                                                } else {
+                                                    IdentifiableEvent::BySystem { system_event }
+                                                },
+                                            );
+                                            connections.send(*connection_id, event).await;
                                         }
                                     }
                                 }
@@ -203,7 +215,13 @@ pub fn spawn_server() -> ServerTx {
                     SystemCommand::LeaveSession => {
                         server.leave_session(from);
                         connections
-                            .send(from, ConnectionEvent::SystemEvent(SystemEvent::LeftSession))
+                            .send(
+                                from,
+                                ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
+                                    command_id,
+                                    system_event: SystemEvent::LeftSession,
+                                }),
+                            )
                             .await;
                     }
                 },

@@ -1,6 +1,6 @@
 import * as React from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Fragment, SystemEventData, SystemFacade } from "../SystemFacade";
+import { useCallback, useEffect, useRef } from "react";
+import { Fragment, SystemEvent } from "../SystemFacade";
 import { useSystemFacade } from "../contexts/SystemFacadeContext";
 
 function getLocalPos(e: any): { x: number; y: number } {
@@ -23,7 +23,7 @@ function SystemConsole(props: Props) {
     (window as any).system = system;
 
     const handler = (e: any) => {
-      const data = e.data as SystemEventData;
+      const data = e.data as SystemEvent;
       if (data.SessionEvent?.Fragment) {
         draw(data.SessionEvent.Fragment);
       }
@@ -79,7 +79,7 @@ function SystemConsole(props: Props) {
   );
 
   const handleLeave = useCallback(async () => {
-    await system.leaveSession();
+    console.log(await system.leaveSession());
     props.onLeave();
   }, [system]);
 
