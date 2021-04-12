@@ -4,8 +4,8 @@ use std::num::Wrapping;
 use tokio::sync::mpsc::{channel, Sender};
 
 use system::{
-    CommandId, CommandResult, ConnectionId, IdentifiableCommand, IdentifiableEvent, SessionCommand,
-    SessionEvent, SessionId, SystemCommand, SystemError, SystemEvent,
+    CommandId, CommandResult, ConnectionId, FatalError, IdentifiableCommand, IdentifiableEvent,
+    SessionCommand, SessionError, SessionEvent, SessionId, SystemCommand, SystemError, SystemEvent,
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
@@ -191,107 +191,131 @@ impl Server {
                         command_id,
                         system_command,
                     },
-            } => {
-                self.handle_system_command(from, command_id, system_command)
-                    .await;
-            }
+            } => match self.handle_system_command(from, system_command).await {
+                Ok(system_event) => {
+                    self.connections
+                        .send(
+                            from,
+                            ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
+                                command_id: command_id.clone(),
+                                result: CommandResult::SystemEvent(system_event),
+                            }),
+                        )
+                        .await
+                }
+                Err(system_error) => match system_error {
+                    SystemError::FatalError(ref fatal_error) => {
+                        println!( // TODO: better logging
+                            "Disconnecting a connection due to fatal error: {}",
+                            fatal_error.reason
+                        );
+                        self.connections
+                            .send(
+                                from,
+                                ConnectionEvent::Disconnected {
+                                    connection_id: from.clone(),
+                                },
+                            )
+                            .await;
+                    }
+                    system_error => {
+                        self.connections
+                            .send(
+                                from,
+                                ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
+                                    command_id: command_id.clone(),
+                                    result: CommandResult::Error(system_error),
+                                }),
+                            )
+                            .await;
+                    }
+                },
+            },
         }
     }
 
     async fn handle_system_command(
         &mut self,
         from: &ConnectionId,
-        command_id: &CommandId,
         command: &SystemCommand,
-    ) {
+    ) -> Result<SystemEvent, SystemError> {
         match command {
             SystemCommand::CreateSession => {
                 let session_id = self.server_state.create_session(from);
-                self.connections
-                    .send(
-                        from,
-                        ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
-                            command_id: command_id.clone(),
-                            result: CommandResult::SystemEvent(SystemEvent::JoinedSession {
-                                session_id,
-                            }),
-                        }),
-                    )
-                    .await;
+                Ok(SystemEvent::JoinedSession { session_id })
             }
             SystemCommand::JoinSession { session_id } => {
                 let result = self.server_state.join_session(from, session_id);
-                self.connections
-                    .send(
-                        from,
-                        ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
-                            command_id: command_id.clone(),
-                            result: if result.is_ok() {
-                                CommandResult::SystemEvent(SystemEvent::JoinedSession {
-                                    session_id: session_id.clone(),
-                                })
-                            } else {
-                                CommandResult::Error(SystemError::InvalidSessionId)
-                            },
-                        }),
-                    )
-                    .await;
+                if result.is_ok() {
+                    Ok(SystemEvent::JoinedSession {
+                        session_id: session_id.clone(),
+                    })
+                } else {
+                    Err(SystemError::InvalidSessionId)
+                }
             }
             SystemCommand::LeaveSession => {
                 if let Ok(_) = self.server_state.leave_session(from) {
-                    self.connections
-                        .send(
-                            from,
-                            ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
-                                command_id: command_id.clone(),
-                                result: CommandResult::SystemEvent(SystemEvent::LeftSession),
-                            }),
-                        )
-                        .await;
+                    Ok(SystemEvent::LeftSession)
                 } else {
-                    self.disconnect(from).await;
+                    Err(SystemError::FatalError(FatalError {
+                        reason: "cannot leave session".into(),
+                    }))
                 }
             }
-            SystemCommand::SessionCommand(ref session_command) => {
-                self.handle_session_command(from, command_id, session_command)
-                    .await;
-            }
+            SystemCommand::SessionCommand(ref session_command) => self
+                .handle_session_command(from, session_command)
+                .await
+                .map(|v| SystemEvent::SessionEvent(v))
+                .map_err(|v| match v {
+                    SessionError::FatalError(fatal_error) => SystemError::FatalError(fatal_error),
+                }),
         }
     }
 
     async fn handle_session_command(
         &mut self,
         from: &ConnectionId,
-        command_id: &CommandId,
         command: &SessionCommand,
-    ) {
+    ) -> Result<SessionEvent, SessionError> {
         if let Some(ConnectionState::Joined(session_id)) =
             self.server_state.connection_states.get(&from)
         {
+            let session_id = session_id.clone();
             match command {
                 SessionCommand::Fragment(ref fragment) => {
-                    if let Ok(conns) = self.server_state.connection_ids_in_session(session_id) {
-                        for connection_id in conns {
-                            let system_event =
-                                SystemEvent::SessionEvent(SessionEvent::Fragment(fragment.clone()));
-                            let event =
-                                ConnectionEvent::IdentifiableEvent(if connection_id == from {
-                                    IdentifiableEvent::ByMyself {
-                                        command_id: command_id.clone(),
-                                        result: CommandResult::SystemEvent(system_event),
-                                    }
-                                } else {
-                                    IdentifiableEvent::BySystem { system_event }
-                                });
-                            self.connections.send(connection_id, event).await;
-                        }
-                    } else {
-                        self.disconnect(from).await;
-                    }
+                    let session_event = SessionEvent::Fragment(fragment.clone());
+                    self.broadcast_session_event(&session_id, session_event.clone(), Some(from))
+                        .await;
+                    Ok(session_event)
                 }
             }
         } else {
-            self.disconnect(from).await;
+            Err(SessionError::FatalError(FatalError {
+                reason: "connection isn't in any session".into(),
+            }))
+        }
+    }
+
+    async fn broadcast_session_event(
+        &mut self,
+        session_id: &SessionId,
+        session_event: SessionEvent,
+        without: Option<&ConnectionId>,
+    ) {
+        // TODO: 커넥션이 많은 경우를 고려해 별도의 task 로 실행되도록 변경
+        if let Ok(conns) = self.server_state.connection_ids_in_session(session_id) {
+            for connection_id in conns {
+                if without.map_or(false, |c| c != connection_id) {
+                    let event = ConnectionEvent::IdentifiableEvent(IdentifiableEvent::BySystem {
+                        system_event: SystemEvent::SessionEvent(session_event.clone()),
+                    });
+                    self.connections.send(connection_id, event).await;
+                }
+            }
+        } else {
+            // TODO: better logging
+            println!("session has no connection. server state has been corrupted");
         }
     }
 

@@ -3,9 +3,10 @@ use serde::{Deserialize, Serialize};
 
 // FIXME: 서버 측 ConnectionCommand 가 Debug 를 필요로 함
 
+/// FatalError makes connection be closed.
 #[derive(Debug, Serialize, Deserialize)]
-pub enum SystemError {
-    InvalidSessionId,
+pub struct FatalError {
+    pub reason: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,11 +49,23 @@ pub enum SystemEvent {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub enum SystemError {
+    InvalidSessionId,
+    FatalError(FatalError),
+    SessionError(SessionError),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SessionCommand {
     Fragment(Fragment),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SessionEvent {
     Fragment(Fragment),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum SessionError {
+    FatalError(FatalError),
 }
