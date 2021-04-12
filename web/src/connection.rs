@@ -4,7 +4,8 @@ use actix_web_actors::ws;
 
 use system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent};
 
-use crate::server::{ConnectionTx, ServerTx};
+use crate::connection_tx_storage::ConnectionTx;
+use crate::server::ServerTx;
 
 #[derive(Debug)]
 pub enum ConnectionCommand {
