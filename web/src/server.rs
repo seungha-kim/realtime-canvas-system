@@ -106,6 +106,12 @@ impl Server {
             SystemCommand::JoinSession { session_id } => {
                 let result = self.server_state.join_session(from, session_id);
                 if result.is_ok() {
+                    self.broadcast_session_event(
+                        session_id,
+                        SessionEvent::SomeoneJoined(from.clone()),
+                        Some(from),
+                    )
+                    .await;
                     Ok(SystemEvent::JoinedSession {
                         session_id: session_id.clone(),
                     })
@@ -162,7 +168,6 @@ impl Server {
         session_event: SessionEvent,
         without: Option<&ConnectionId>,
     ) {
-        // TODO: 커넥션이 많은 경우를 고려해 별도의 task 로 실행되도록 변경
         if let Ok(conns) = self.server_state.connection_ids_in_session(session_id) {
             for connection_id in conns {
                 if without.map_or(false, |c| c != connection_id) {

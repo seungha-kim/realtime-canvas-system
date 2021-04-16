@@ -2,6 +2,7 @@ import * as React from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { Fragment, SystemEvent } from "../SystemFacade";
 import { useSystemFacade } from "../contexts/SystemFacadeContext";
+import { useToast } from "../contexts/ToastContext";
 
 function getLocalPos(e: any): { x: number; y: number } {
   const rect = e.target.getBoundingClientRect();
@@ -18,6 +19,7 @@ function SystemConsole(props: Props) {
   const system = useSystemFacade();
   const prevPosRef = useRef<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const toastControl = useToast();
 
   useEffect(() => {
     (window as any).system = system;
@@ -26,6 +28,10 @@ function SystemConsole(props: Props) {
       const data = e.data as SystemEvent;
       if (data.SessionEvent?.Fragment) {
         draw(data.SessionEvent.Fragment);
+      } else if (typeof data.SessionEvent?.SomeoneJoined !== "undefined") {
+        toastControl.toast(
+          "Someone joined: " + data.SessionEvent?.SomeoneJoined
+        );
       }
     };
 
@@ -34,7 +40,7 @@ function SystemConsole(props: Props) {
     return () => {
       system.removeEventListener("system", handler);
     };
-  }, [system]);
+  }, [system, toastControl]);
 
   const handleMouseDown = useCallback((e) => {
     const { x, y } = getLocalPos(e);
