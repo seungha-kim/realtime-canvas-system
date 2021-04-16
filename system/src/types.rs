@@ -11,3 +11,8 @@ pub struct Fragment {
     pub x2: f32,
     pub y2: f32,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionState {
+    pub connections: Vec<ConnectionId>,
+}

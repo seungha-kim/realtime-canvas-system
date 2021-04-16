@@ -2,7 +2,8 @@ use tokio::sync::mpsc::{channel, Sender};
 
 use system::{
     CommandResult, ConnectionId, FatalError, IdentifiableCommand, IdentifiableEvent,
-    SessionCommand, SessionError, SessionEvent, SessionId, SystemCommand, SystemError, SystemEvent,
+    SessionCommand, SessionError, SessionEvent, SessionId, SessionState, SystemCommand,
+    SystemError, SystemEvent,
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
@@ -101,7 +102,11 @@ impl Server {
         match command {
             SystemCommand::CreateSession => {
                 let session_id = self.server_state.create_session(from);
-                Ok(SystemEvent::JoinedSession { session_id })
+                let connections = self.server_state.sessions.get(&session_id).unwrap().clone();
+                Ok(SystemEvent::JoinedSession {
+                    session_id,
+                    initial_state: SessionState { connections },
+                })
             }
             SystemCommand::JoinSession { session_id } => {
                 let result = self.server_state.join_session(from, session_id);
@@ -112,8 +117,10 @@ impl Server {
                         Some(from),
                     )
                     .await;
+                    let connections = self.server_state.sessions.get(&session_id).unwrap().clone();
                     Ok(SystemEvent::JoinedSession {
                         session_id: session_id.clone(),
+                        initial_state: SessionState { connections },
                     })
                 } else {
                     Err(SystemError::InvalidSessionId)

@@ -42,8 +42,13 @@ pub enum SystemCommand {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SystemEvent {
-    Connected { connection_id: ConnectionId },
-    JoinedSession { session_id: SessionId },
+    Connected {
+        connection_id: ConnectionId,
+    },
+    JoinedSession {
+        session_id: SessionId,
+        initial_state: SessionState,
+    },
     LeftSession,
     SessionEvent(SessionEvent),
 }
