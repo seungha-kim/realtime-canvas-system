@@ -75,12 +75,21 @@ impl ServerState {
         if let Some(ConnectionState::Joined(session_id)) =
             self.connection_states.get(&connection_id)
         {
+            let session_id = session_id.clone();
             self.sessions
-                .get_mut(session_id)
+                .get_mut(&session_id)
                 .map(|v| v.retain(|e| e != connection_id));
             self.connection_states
                 .get_mut(&connection_id)
                 .map(|s| *s = ConnectionState::InLobby);
+            if self
+                .sessions
+                .get(&session_id)
+                .map(|v| v.is_empty())
+                .unwrap_or(false)
+            {
+                self.sessions.remove(&session_id);
+            }
             Ok(())
         } else {
             Err(())
@@ -110,5 +119,19 @@ impl ServerState {
     fn new_session_id(&mut self) -> SessionId {
         self.session_id_source += Wrapping(1);
         self.session_id_source.0
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn it_remove_session_when_all_connections_disconnect() {
+        let mut state = ServerState::new();
+        let conn = state.create_connection();
+        state.create_session(&conn);
+        state.leave_session(&conn).unwrap();
+        assert!(state.sessions.is_empty())
     }
 }
