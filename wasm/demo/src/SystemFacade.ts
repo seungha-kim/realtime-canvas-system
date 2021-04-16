@@ -15,6 +15,7 @@ export type SystemEvent = {
   SessionEvent?: {
     Fragment?: Fragment;
     SomeoneJoined: number; // connection id
+    SomeoneLeft: number; // connection id
   };
 };
 

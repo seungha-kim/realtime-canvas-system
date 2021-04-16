@@ -120,7 +120,13 @@ impl Server {
                 }
             }
             SystemCommand::LeaveSession => {
-                if let Ok(_) = self.server_state.leave_session(from) {
+                if let Ok(session_id) = self.server_state.leave_session(from) {
+                    self.broadcast_session_event(
+                        &session_id,
+                        SessionEvent::SomeoneLeft(from.clone()),
+                        Some(from),
+                    )
+                    .await;
                     Ok(SystemEvent::LeftSession)
                 } else {
                     Err(SystemError::FatalError(FatalError {

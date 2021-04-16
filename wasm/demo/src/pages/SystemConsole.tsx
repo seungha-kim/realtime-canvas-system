@@ -32,6 +32,8 @@ function SystemConsole(props: Props) {
         toastControl.toast(
           "Someone joined: " + data.SessionEvent?.SomeoneJoined
         );
+      } else if (typeof data.SessionEvent?.SomeoneLeft !== "undefined") {
+        toastControl.toast("Someone left: " + data.SessionEvent?.SomeoneLeft);
       }
     };
 

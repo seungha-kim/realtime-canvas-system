@@ -64,6 +64,7 @@ pub enum SessionCommand {
 pub enum SessionEvent {
     Fragment(Fragment),
     SomeoneJoined(ConnectionId),
+    SomeoneLeft(ConnectionId),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
