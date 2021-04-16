@@ -35,21 +35,10 @@ impl Server {
                     .await;
             }
             ConnectionCommand::Disconnect { from } => {
-                if let Ok(session_id) = self.server_state.leave_session(from) {
-                    self.broadcast_session_event(
-                        &session_id,
-                        SessionEvent::SomeoneLeft(from.clone()),
-                        Some(from),
-                    )
-                    .await;
-                }
+                let _ = self.leave_session(from).await;
                 self.server_state.disconnect(from);
-                if let Some(mut tx) = self.connections.remove(from) {
-                    tx.send(ConnectionEvent::Disconnected {
-                        connection_id: from.clone(),
-                    })
-                    .await
-                    .unwrap(); // FIXME: unwrap
+                if let Some(_) = self.connections.remove(from) {
+                    self.disconnect(from).await;
                 };
             }
             ConnectionCommand::IdentifiableCommand {
@@ -77,14 +66,7 @@ impl Server {
                             "Disconnecting a connection due to fatal error: {}",
                             fatal_error.reason
                         );
-                        self.connections
-                            .send(
-                                from,
-                                ConnectionEvent::Disconnected {
-                                    connection_id: from.clone(),
-                                },
-                            )
-                            .await;
+                        self.disconnect(from).await;
                     }
                     system_error => {
                         self.connections
@@ -135,13 +117,7 @@ impl Server {
                 }
             }
             SystemCommand::LeaveSession => {
-                if let Ok(session_id) = self.server_state.leave_session(from) {
-                    self.broadcast_session_event(
-                        &session_id,
-                        SessionEvent::SomeoneLeft(from.clone()),
-                        Some(from),
-                    )
-                    .await;
+                if let Some(_) = self.leave_session(from).await {
                     Ok(SystemEvent::LeftSession)
                 } else {
                     Err(SystemError::FatalError(FatalError {
@@ -204,9 +180,23 @@ impl Server {
         }
     }
 
-    #[allow(dead_code)]
+    async fn leave_session(&mut self, connection_id: &ConnectionId) -> Option<SessionId> {
+        if let Some(session_id) = self.server_state.leave_session(connection_id) {
+            self.broadcast_session_event(
+                &session_id,
+                SessionEvent::SomeoneLeft(connection_id.clone()),
+                Some(connection_id),
+            )
+            .await;
+            Some(session_id)
+        } else {
+            None
+        }
+    }
+
     async fn disconnect(&mut self, connection_id: &ConnectionId) {
         // TODO: reason
+        self.leave_session(connection_id).await;
         self.connections
             .send(
                 connection_id,

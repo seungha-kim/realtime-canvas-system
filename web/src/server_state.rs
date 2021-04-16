@@ -71,7 +71,7 @@ impl ServerState {
         }
     }
 
-    pub fn leave_session(&mut self, connection_id: &ConnectionId) -> Result<SessionId, ()> {
+    pub fn leave_session(&mut self, connection_id: &ConnectionId) -> Option<SessionId> {
         if let Some(ConnectionState::Joined(session_id)) =
             self.connection_states.get(&connection_id)
         {
@@ -90,9 +90,9 @@ impl ServerState {
             {
                 self.sessions.remove(&session_id);
             }
-            Ok(session_id)
+            Some(session_id)
         } else {
-            Err(())
+            None
         }
     }
 
