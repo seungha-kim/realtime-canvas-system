@@ -97,7 +97,6 @@ impl ServerState {
     }
 
     pub fn disconnect(&mut self, connection_id: &ConnectionId) {
-        let _ = self.leave_session(connection_id);
         self.connection_states.remove(&connection_id);
     }
 

@@ -35,6 +35,14 @@ impl Server {
                     .await;
             }
             ConnectionCommand::Disconnect { from } => {
+                if let Ok(session_id) = self.server_state.leave_session(from) {
+                    self.broadcast_session_event(
+                        &session_id,
+                        SessionEvent::SomeoneLeft(from.clone()),
+                        Some(from),
+                    )
+                    .await;
+                }
                 self.server_state.disconnect(from);
                 if let Some(mut tx) = self.connections.remove(from) {
                     tx.send(ConnectionEvent::Disconnected {
