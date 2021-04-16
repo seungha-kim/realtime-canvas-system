@@ -9,26 +9,30 @@ export interface Fragment {
   y2: number;
 }
 
+type ConnectionId = number;
+type SessionId = number;
+type CommandId = number;
+
 export type SystemEvent = {
-  JoinedSession?: { session_id: number };
+  JoinedSession?: { session_id: SessionId };
   LeftSession?: null;
   SessionEvent?: {
     Fragment?: Fragment;
-    SomeoneJoined: number; // connection id
-    SomeoneLeft: number; // connection id
+    SomeoneJoined: ConnectionId;
+    SomeoneLeft: ConnectionId;
   };
 };
 
 type SystemCommand = {
   CreateSession?: null;
-  JoinSession?: { session_id: number };
+  JoinSession?: { session_id: SessionId };
   LeaveSession?: null;
   SessionCommand?: { Fragment: Fragment };
 };
 
 interface IdentifiableEvent {
   ByMyself?: {
-    command_id: number;
+    command_id: CommandId;
     result: {
       SystemEvent?: SystemEvent;
       Error?: any;
@@ -56,7 +60,7 @@ type CommandResolver = {
 export class SystemFacade extends EventTarget {
   private system: Promise<CanvasSystem>;
   private ws: WebSocket;
-  private commandResolverRegistry: Map<number, CommandResolver> = new Map();
+  private commandResolverRegistry: Map<CommandId, CommandResolver> = new Map();
 
   constructor(url: string) {
     super();
