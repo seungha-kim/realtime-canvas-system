@@ -2,7 +2,7 @@ use std::num::Wrapping;
 
 use wasm_bindgen::prelude::*;
 
-use system::{
+use realtime_canvas_system::{
     bincode, serde_json, CommandId, IdentifiableCommand, IdentifiableEvent, SystemCommand,
 };
 

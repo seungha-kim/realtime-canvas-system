@@ -1265,25 +1265,42 @@ dependencies = [
 ]
 
 [[package]]
-name = "realtime-canvas"
+name = "realtime-canvas-pkg"
 version = "0.1.0"
 dependencies = [
- "console_error_panic_hook",
- "system",
- "wasm-bindgen",
- "wasm-bindgen-test",
- "wee_alloc",
+ "realtime-canvas-server",
 ]
 
 [[package]]
-name = "realtime_canvas_web"
+name = "realtime-canvas-server"
 version = "0.1.0"
 dependencies = [
  "actix",
  "actix-web",
  "actix-web-actors",
- "system",
+ "realtime-canvas-system",
  "tokio",
+]
+
+[[package]]
+name = "realtime-canvas-system"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "realtime-canvas-wasm"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "realtime-canvas-system",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "wee_alloc",
 ]
 
 [[package]]
@@ -1525,16 +1542,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
-]
-
-[[package]]
-name = "system"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "serde",
- "serde_json",
- "uuid",
 ]
 
 [[package]]

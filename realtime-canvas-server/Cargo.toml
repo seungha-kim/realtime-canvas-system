@@ -1,5 +1,5 @@
 [package]
-name = "realtime_canvas_web"
+name = "realtime-canvas-server"
 version = "0.1.0"
 authors = ["Kim Seungha <seungha.me@gmail.com>"]
 edition = "2018"
@@ -11,4 +11,4 @@ actix = "0.10"
 actix-web = "3"
 actix-web-actors = "3"
 tokio = "0.2"
-system = { path = "../system" }
+realtime-canvas-system = { path = "../realtime-canvas-system" }

@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::{channel, Sender};
 
-use system::{
+use realtime_canvas_system::{
     CommandResult, ConnectionId, FatalError, IdentifiableCommand, IdentifiableEvent,
     SessionCommand, SessionError, SessionEvent, SessionId, SessionState, SystemCommand,
     SystemError, SystemEvent,
@@ -92,7 +92,12 @@ impl Server {
         match command {
             SystemCommand::CreateSession => {
                 let session_id = self.server_state.create_session(from);
-                let connections = self.server_state.sessions.get(&session_id).unwrap().clone();
+                let connections = self
+                    .server_state
+                    .sessions
+                    .get(&session_id)
+                    .expect("connection vector must exist")
+                    .clone();
                 Ok(SystemEvent::JoinedSession {
                     session_id,
                     initial_state: SessionState { connections },
@@ -107,7 +112,12 @@ impl Server {
                         Some(from),
                     )
                     .await;
-                    let connections = self.server_state.sessions.get(&session_id).unwrap().clone();
+                    let connections = self
+                        .server_state
+                        .sessions
+                        .get(&session_id)
+                        .expect("connection vector must exists")
+                        .clone();
                     Ok(SystemEvent::JoinedSession {
                         session_id: session_id.clone(),
                         initial_state: SessionState { connections },

@@ -1,8 +1,9 @@
 [workspace]
 members = [
-    "system",
-    "wasm",
-    "web",
+    "realtime-canvas-system",
+    "realtime-canvas-wasm",
+    "realtime-canvas-server",
+    "realtime-canvas-pkg",
 ]
 
 [profile.release]
