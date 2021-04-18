@@ -9,7 +9,9 @@ type Props = {
 };
 
 export function SystemFacadeProvider(props: Props) {
-  const [facade] = useState(() => new SystemFacade("ws://localhost:8080/ws/"));
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  const host = window.location.host;
+  const [facade] = useState(() => new SystemFacade(`${protocol}//${host}/ws/`));
   return (
     <SystemFacadeContext.Provider value={facade}>
       {props.children}
