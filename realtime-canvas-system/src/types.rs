@@ -16,3 +16,22 @@ pub struct Fragment {
 pub struct SessionState {
     pub connections: Vec<ConnectionId>,
 }
+
+pub type ObjectId = uuid::Uuid;
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct PropKey(pub ObjectId, pub String);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ObjectType {
+    Document,
+    Circle,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PropName {
+    Title,
+    PosX,
+    PosY,
+    Radius,
+}

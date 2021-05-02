@@ -161,6 +161,7 @@ impl Server {
                         .await;
                     Ok(session_event)
                 }
+                _ => unimplemented!(),
             }
         } else {
             Err(SessionError::FatalError(FatalError {

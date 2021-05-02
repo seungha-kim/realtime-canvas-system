@@ -3,7 +3,8 @@ use std::num::Wrapping;
 use wasm_bindgen::prelude::*;
 
 use realtime_canvas_system::{
-    bincode, serde_json, CommandId, IdentifiableCommand, IdentifiableEvent, SystemCommand,
+    bincode, serde_json, ClientLeaderDocument, CommandId, IdentifiableCommand, IdentifiableEvent,
+    SystemCommand,
 };
 
 mod utils;
@@ -17,6 +18,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen]
 pub struct CanvasSystem {
     command_id_source: Wrapping<CommandId>,
+    local_document: ClientLeaderDocument,
 }
 
 #[wasm_bindgen]
@@ -27,6 +29,7 @@ impl CanvasSystem {
 
         CanvasSystem {
             command_id_source: Wrapping(0),
+            local_document: ClientLeaderDocument::new(),
         }
     }
 

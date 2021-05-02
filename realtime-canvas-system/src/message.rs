@@ -63,6 +63,7 @@ pub enum SystemError {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SessionCommand {
     Fragment(Fragment),
+    Transaction(Transaction),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -75,4 +76,34 @@ pub enum SessionEvent {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SessionError {
     FatalError(FatalError),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PropValue {
+    String(String),
+    Float(f32),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum DocumentMutation {
+    CreateObject(ObjectId, ObjectType),
+    UpdateObject(PropKey, PropValue),
+    DeleteObject(ObjectId),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum TransactionNackReason {
+    Something,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub enum DocumentEvent {
+    TransactionAck,
+    TransactionNack(TransactionNackReason),
+    OthersTransaction(Transaction),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Transaction {
+    pub items: Vec<DocumentMutation>,
 }
