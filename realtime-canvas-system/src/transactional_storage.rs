@@ -83,6 +83,6 @@ impl ReadableStorage for TransactionalStorage {
     fn get_string_prop(&self, key: &PropKey) -> Option<&str> {
         let from_kv = self.doc_storage.get_string_prop(key);
         let from_tx = self.tx_manager.get_string_prop(key);
-        from_kv.or(from_tx)
+        from_tx.or(from_kv)
     }
 }
