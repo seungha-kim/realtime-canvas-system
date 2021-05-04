@@ -1,3 +1,4 @@
+use crate::message::*;
 use serde::{Deserialize, Serialize};
 
 pub type ConnectionId = u16;
@@ -34,4 +35,21 @@ pub enum PropName {
     PosX,
     PosY,
     Radius,
+}
+
+pub type TransactionId = uuid::Uuid;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Transaction {
+    pub id: TransactionId,
+    pub items: Vec<DocumentMutation>,
+}
+
+impl Transaction {
+    pub fn new(items: Vec<DocumentMutation>) -> Self {
+        Self {
+            id: uuid::Uuid::new_v4(),
+            items,
+        }
+    }
 }

@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
-use crate::traits::ReadableStorage;
+use crate::traits::{DocumentReadable, PropReadable};
 
 use super::types::*;
 use crate::message::*;
+use uuid::Uuid;
 
 // TODO: tree - cyclic reference detection
 // TODO: LayeredStorage - 레이어링을 해야 하기 때문에 partial property 를 지원해야 한다.
@@ -67,8 +68,14 @@ impl DocumentStorage {
     }
 }
 
-impl ReadableStorage for DocumentStorage {
+impl PropReadable for DocumentStorage {
     fn get_string_prop(&self, key: &PropKey) -> Option<&str> {
         self.string_props.get(key).map(String::as_ref)
+    }
+}
+
+impl DocumentReadable for DocumentStorage {
+    fn document_id(&self) -> Uuid {
+        self.document_id
     }
 }

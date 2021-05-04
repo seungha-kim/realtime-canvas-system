@@ -1,10 +1,11 @@
 use super::message::*;
-use super::traits::ReadableStorage;
+use super::traits::PropReadable;
 use super::types::*;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 pub struct TransactionManager {
-    txs: HashMap<CommandId, Transaction>,
+    txs: HashMap<uuid::Uuid, Transaction>,
 }
 
 impl TransactionManager {
@@ -14,20 +15,21 @@ impl TransactionManager {
         }
     }
 
-    pub fn push(&mut self, command_id: CommandId, tx: Transaction) {
+    pub fn push(&mut self, tx: Transaction) {
         // ASSUME: CommandId 는 u16 으로 충분할 것
-        assert!(!self.txs.contains_key(&command_id));
-        self.txs.insert(command_id, tx);
+        assert!(!self.txs.contains_key(&tx.id));
+        self.txs.insert(tx.id, tx);
     }
 
-    pub fn pop(&mut self, command_id: CommandId) -> Option<Transaction> {
-        self.txs.remove(&command_id)
+    pub fn pop(&mut self, tx_id: &TransactionId) -> Option<Transaction> {
+        self.txs.remove(&tx_id)
     }
 }
 
-impl ReadableStorage for TransactionManager {
+impl PropReadable for TransactionManager {
     fn get_string_prop(&self, target_key: &PropKey) -> Option<&str> {
         let mut result: Option<&str> = None;
+        // TODO: 전부 탐색할 필요 없이, 끝에서부터 역순으로 탐색해서 처음으로 만족하는 요소 반환
         'outer: for (_, tx) in &self.txs {
             for command in &tx.items {
                 if let DocumentMutation::UpdateObject(prop_key, prop_value) = command {
@@ -55,15 +57,13 @@ mod tests {
         let object_id = uuid::Uuid::new_v4();
 
         // NOTE: 트랜잭션은 객체 만들어지기 전에도 UpdateObject 할 수 있다고 가정
-        manager.push(
-            1,
-            Transaction {
-                items: vec![DocumentMutation::UpdateObject(
-                    PropKey(object_id, "hello".to_string()),
-                    PropValue::String("world".into()),
-                )],
-            },
-        );
+        manager.push(Transaction {
+            id: uuid::Uuid::new_v4(),
+            items: vec![DocumentMutation::UpdateObject(
+                PropKey(object_id, "hello".to_string()),
+                PropValue::String("world".into()),
+            )],
+        });
 
         assert_eq!(
             manager.get_string_prop(&PropKey(object_id, "hello".to_string())),
@@ -88,26 +88,23 @@ mod tests {
         let mut manager = TransactionManager::new();
 
         let object_id = uuid::Uuid::new_v4();
+        let tx_id = uuid::Uuid::new_v4();
 
-        manager.push(
-            1,
-            Transaction {
-                items: vec![DocumentMutation::UpdateObject(
-                    PropKey(object_id, "hello".to_string()),
-                    PropValue::String("world".into()),
-                )],
-            },
-        );
+        manager.push(Transaction {
+            id: tx_id,
+            items: vec![DocumentMutation::UpdateObject(
+                PropKey(object_id, "hello".to_string()),
+                PropValue::String("world".into()),
+            )],
+        });
 
         // same command id
-        manager.push(
-            1,
-            Transaction {
-                items: vec![DocumentMutation::UpdateObject(
-                    PropKey(object_id, "hello".to_string()),
-                    PropValue::String("world".into()),
-                )],
-            },
-        );
+        manager.push(Transaction {
+            id: tx_id,
+            items: vec![DocumentMutation::UpdateObject(
+                PropKey(object_id, "hello".to_string()),
+                PropValue::String("world".into()),
+            )],
+        });
     }
 }

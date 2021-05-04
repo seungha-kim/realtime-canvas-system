@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::traits::ReadableStorage;
+use crate::traits::{DocumentReadable, PropReadable};
 
 use super::document_storage::DocumentStorage;
 use super::types::*;
@@ -10,12 +10,13 @@ pub struct Document {
     title: String,
 }
 
-pub trait Materialize<R: ReadableStorage> {
+pub trait Materialize<R: PropReadable + DocumentReadable> {
     fn readable(&self) -> &R;
 
-    fn document(&mut self, document_id: &ObjectId) -> Document {
-        let title = self
-            .readable()
+    fn materialize_document(&self) -> Document {
+        let readable = self.readable();
+        let document_id = readable.document_id();
+        let title = readable
             .get_string_prop(&PropKey(document_id.clone(), "title".into()))
             .unwrap_or("Untitled")
             .into();

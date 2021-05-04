@@ -1,4 +1,3 @@
-use crate::message::Transaction;
 use crate::message::*;
 use crate::types::*;
 use crate::ObjectType::Document;

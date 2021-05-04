@@ -9,6 +9,8 @@ mod transactional_storage;
 mod types;
 
 pub use client_leader_document::*;
+pub use document_command::*;
+pub use materialize::*;
 pub use message::*;
 pub use types::*;
 

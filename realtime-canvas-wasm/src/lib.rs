@@ -3,8 +3,8 @@ use std::num::Wrapping;
 use wasm_bindgen::prelude::*;
 
 use realtime_canvas_system::{
-    bincode, serde_json, ClientLeaderDocument, CommandId, IdentifiableCommand, IdentifiableEvent,
-    SystemCommand,
+    bincode, serde_json, ClientLeaderDocument, CommandId, DocumentCommand, IdentifiableCommand,
+    IdentifiableEvent, Materialize, SystemCommand,
 };
 
 mod utils;
@@ -60,5 +60,16 @@ impl CanvasSystem {
     fn new_command_id(&mut self) -> CommandId {
         self.command_id_source += Wrapping(1);
         self.command_id_source.0
+    }
+
+    pub fn push_document_command(&mut self, json: String) {
+        let command = serde_json::from_str::<DocumentCommand>(&json).unwrap();
+
+        self.local_document.handle_command(command)
+    }
+
+    pub fn materialize_document(&self) -> String {
+        let document = self.local_document.materialize_document();
+        return serde_json::to_string(&document).unwrap();
     }
 }

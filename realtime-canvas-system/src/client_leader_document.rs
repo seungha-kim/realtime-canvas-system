@@ -1,29 +1,31 @@
 use std::collections::VecDeque;
 
-use crate::document_storage::DocumentStorage;
 use crate::materialize::Materialize;
+use crate::transactional_storage::TransactionalStorage;
 
 use super::message::*;
 use super::types::*;
+use crate::traits::PropReadable;
+use crate::DocumentCommand;
 
 pub struct ClientLeaderDocument {
-    doc_storage: DocumentStorage,
+    storage: TransactionalStorage,
 }
 
-impl Materialize<DocumentStorage> for ClientLeaderDocument {
-    fn readable(&self) -> &DocumentStorage {
-        &self.doc_storage
+impl Materialize<TransactionalStorage> for ClientLeaderDocument {
+    fn readable(&self) -> &TransactionalStorage {
+        &self.storage
     }
 }
 
 impl ClientLeaderDocument {
     pub fn new() -> Self {
         Self {
-            doc_storage: DocumentStorage::new(),
+            storage: TransactionalStorage::new(),
         }
     }
 
-    pub fn process(&mut self, tx: Transaction) -> Result<(), ()> {
-        self.doc_storage.process(tx)
+    pub fn handle_command(&mut self, command: DocumentCommand) {
+        self.storage.handle_command(command);
     }
 }

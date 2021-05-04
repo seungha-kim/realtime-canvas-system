@@ -102,8 +102,3 @@ pub enum DocumentEvent {
     TransactionNack(TransactionNackReason),
     OthersTransaction(Transaction),
 }
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Transaction {
-    pub items: Vec<DocumentMutation>,
-}
