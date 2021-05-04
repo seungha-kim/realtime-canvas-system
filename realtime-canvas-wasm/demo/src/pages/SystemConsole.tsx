@@ -1,6 +1,6 @@
 import * as React from "react";
-import { useCallback, useEffect, useRef } from "react";
-import { Fragment, SystemEvent } from "../SystemFacade";
+import {useCallback, useEffect, useRef, useState} from "react";
+import {DocumentMaterial, Fragment, SystemEvent} from "../SystemFacade";
 import { useSystemFacade } from "../contexts/SystemFacadeContext";
 import { useToast } from "../contexts/ToastContext";
 
@@ -17,12 +17,17 @@ type Props = {
 
 function SystemConsole(props: Props) {
   const system = useSystemFacade();
+  const [documentMaterial, setDocumentMaterial] = useState<DocumentMaterial | null>(null)
   const prevPosRef = useRef<{ x: number; y: number } | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const toastControl = useToast();
 
   useEffect(() => {
     (window as any).system = system;
+
+    (async () => {
+      setDocumentMaterial(await system.materializeDocument())
+    })()
 
     const handler = (e: any) => {
       const data = e.data as SystemEvent;
@@ -94,6 +99,7 @@ function SystemConsole(props: Props) {
   } else {
     return (
       <div>
+        <h1>{documentMaterial?.title}</h1>
         <canvas
           ref={canvasRef}
           width={100}

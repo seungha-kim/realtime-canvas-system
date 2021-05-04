@@ -1,11 +1,10 @@
-use std::num::Wrapping;
-
-use wasm_bindgen::prelude::*;
-
 use realtime_canvas_system::{
     bincode, serde_json, ClientLeaderDocument, CommandId, DocumentCommand, IdentifiableCommand,
-    IdentifiableEvent, Materialize, SystemCommand,
+    IdentifiableEvent, Materialize, ObjectId, SystemCommand,
 };
+use std::collections::HashSet;
+use std::num::Wrapping;
+use wasm_bindgen::prelude::*;
 
 mod utils;
 
@@ -19,6 +18,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 pub struct CanvasSystem {
     command_id_source: Wrapping<CommandId>,
     local_document: ClientLeaderDocument,
+    invalidated_object_ids: HashSet<ObjectId>,
 }
 
 #[wasm_bindgen]
@@ -30,6 +30,7 @@ impl CanvasSystem {
         CanvasSystem {
             command_id_source: Wrapping(0),
             local_document: ClientLeaderDocument::new(),
+            invalidated_object_ids: HashSet::new(),
         }
     }
 
@@ -65,7 +66,18 @@ impl CanvasSystem {
     pub fn push_document_command(&mut self, json: String) {
         let command = serde_json::from_str::<DocumentCommand>(&json).unwrap();
 
-        self.local_document.handle_command(command)
+        if self.invalidated_object_ids.len() > 0 {
+            eprintln!("invalidate_object_ids must be consumed for each command");
+        }
+        for invalidated_object_id in self.local_document.handle_command(command) {
+            self.invalidated_object_ids.insert(invalidated_object_id);
+        }
+    }
+
+    pub fn consume_invalidated_object_ids(&mut self) -> String {
+        let result = serde_json::to_string(&self.invalidated_object_ids).unwrap();
+        self.invalidated_object_ids.clear();
+        result
     }
 
     pub fn materialize_document(&self) -> String {

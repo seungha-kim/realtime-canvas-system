@@ -24,6 +24,10 @@ impl TransactionManager {
     pub fn pop(&mut self, tx_id: &TransactionId) -> Option<Transaction> {
         self.txs.remove(&tx_id)
     }
+
+    pub fn get(&self, tx_id: &TransactionId) -> Option<&Transaction> {
+        self.txs.get(tx_id)
+    }
 }
 
 impl PropReadable for TransactionManager {

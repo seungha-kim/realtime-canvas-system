@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use crate::materialize::Materialize;
 use crate::transactional_storage::TransactionalStorage;
@@ -25,7 +25,7 @@ impl ClientLeaderDocument {
         }
     }
 
-    pub fn handle_command(&mut self, command: DocumentCommand) {
-        self.storage.handle_command(command);
+    pub fn handle_command(&mut self, command: DocumentCommand) -> HashSet<ObjectId> {
+        self.storage.handle_command(command)
     }
 }

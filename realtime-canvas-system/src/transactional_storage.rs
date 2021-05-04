@@ -5,6 +5,8 @@ use crate::types::*;
 use super::document_storage::*;
 use super::transaction_manager::*;
 use crate::document_command::DocumentCommand;
+use crate::materialize::InvalidatedMaterial;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 pub struct TransactionalStorage {
@@ -26,9 +28,15 @@ impl TransactionalStorage {
         &mut self.tx_manager
     }
 
-    pub fn handle_command(&mut self, command: DocumentCommand) {
+    pub fn handle_command(&mut self, command: DocumentCommand) -> HashSet<ObjectId> {
         let tx = self.convert_command_to_tx(command);
+        let id = tx.id;
         self.tx_manager.push(tx);
+        // TODO: validation
+        self.tx_manager
+            .get(&id)
+            .map(|tx| self.invalidated_object_id(tx))
+            .unwrap_or(HashSet::new())
     }
 
     fn convert_command_to_tx(&self, command: DocumentCommand) -> Transaction {
@@ -59,6 +67,17 @@ impl TransactionalStorage {
             }
             _ => unimplemented!(),
         }
+    }
+
+    fn invalidated_object_id(&self, tx: &Transaction) -> HashSet<ObjectId> {
+        tx.items
+            .iter()
+            .map(|m| match m {
+                DocumentMutation::CreateObject(object_id, _) => object_id.clone(),
+                DocumentMutation::UpdateObject(prop_key, _) => prop_key.0,
+                DocumentMutation::DeleteObject(object_id) => object_id.clone(),
+            })
+            .collect()
     }
 
     fn process(&mut self, tx: Transaction) -> Result<(), ()> {

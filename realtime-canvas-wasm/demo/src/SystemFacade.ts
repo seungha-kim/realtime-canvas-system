@@ -57,6 +57,11 @@ type CommandResolver = {
   reject: (error: any) => void;
 };
 
+export type DocumentMaterial = {
+  id: string,
+  title: string,
+}
+
 export class SystemFacade extends EventTarget {
   private system: Promise<CanvasSystem>;
   private ws: WebSocket;
@@ -64,7 +69,11 @@ export class SystemFacade extends EventTarget {
 
   constructor(url: string) {
     super();
-    this.system = init(mod).then(() => new CanvasSystem());
+    this.system = init(mod).then(() => {
+      const system = new CanvasSystem();
+      (window as any).system = system;
+      return system;
+    });
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     this.ws = ws;
@@ -106,6 +115,14 @@ export class SystemFacade extends EventTarget {
       },
       false
     );
+  }
+
+  async materializeDocument(): Promise<DocumentMaterial> {
+    return JSON.parse((await this.system).materialize_document())
+  }
+
+  async consumeInvalidatedObjectIds(): Promise<string[]> {
+    return JSON.parse((await this.system).consume_invalidated_object_ids())
   }
 
   private async sendCommand(command: SystemCommand): Promise<SystemEvent>;
