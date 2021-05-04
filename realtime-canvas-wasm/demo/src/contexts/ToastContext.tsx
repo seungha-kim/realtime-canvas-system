@@ -6,7 +6,7 @@ type ToastPayload = {
   content: React.ReactNode;
 };
 
-type ToastControl = {
+export type ToastControl = {
   toast: (message: string, timeout?: number) => void;
 };
 

@@ -1,8 +1,12 @@
 import * as React from "react";
-import {useCallback, useEffect, useRef, useState} from "react";
-import {DocumentMaterial, Fragment, SystemEvent} from "../SystemFacade";
+import {
+  DocumentMaterial,
+  Fragment,
+  SystemEvent,
+  SystemFacade,
+} from "../SystemFacade";
 import { useSystemFacade } from "../contexts/SystemFacadeContext";
-import { useToast } from "../contexts/ToastContext";
+import { ToastControl, useToast } from "../contexts/ToastContext";
 
 function getLocalPos(e: any): { x: number; y: number } {
   const rect = e.target.getBoundingClientRect();
@@ -15,104 +19,123 @@ type Props = {
   onLeave: () => void;
 };
 
-function SystemConsole(props: Props) {
-  const system = useSystemFacade();
-  const [documentMaterial, setDocumentMaterial] = useState<DocumentMaterial | null>(null)
-  const prevPosRef = useRef<{ x: number; y: number } | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const toastControl = useToast();
+type InnerProps = Props & {
+  systemFacade: SystemFacade;
+  toastControl: ToastControl;
+};
 
-  useEffect(() => {
-    (window as any).system = system;
+type InnerState = {
+  documentMaterial: DocumentMaterial | null;
+};
 
-    (async () => {
-      setDocumentMaterial(await system.materializeDocument())
-    })()
+class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
+  state: InnerState = {
+    documentMaterial: null,
+  };
+  canvasRef = React.createRef<HTMLCanvasElement>();
+  prevPos: { x: number; y: number } | null = null;
 
-    const handler = (e: any) => {
-      const data = e.data as SystemEvent;
-      if (data.SessionEvent?.Fragment) {
-        draw(data.SessionEvent.Fragment);
-      } else if (typeof data.SessionEvent?.SomeoneJoined !== "undefined") {
-        toastControl.toast(
-          "Someone joined: " + data.SessionEvent?.SomeoneJoined
-        );
-      } else if (typeof data.SessionEvent?.SomeoneLeft !== "undefined") {
-        toastControl.toast("Someone left: " + data.SessionEvent?.SomeoneLeft);
-      }
-    };
+  componentDidMount() {
+    const { systemFacade } = this.props;
+    systemFacade
+      .materializeDocument()
+      .then((d) => this.setState({ documentMaterial: d }));
 
-    system.addEventListener("system", handler);
+    systemFacade.addEventListener("system", this.systemEventHandler);
+  }
 
-    return () => {
-      system.removeEventListener("system", handler);
-    };
-  }, [system, toastControl]);
+  componentWillUnmount() {
+    this.props.systemFacade.removeEventListener(
+      "system",
+      this.systemEventHandler
+    );
+  }
 
-  const handleMouseDown = useCallback((e) => {
+  systemEventHandler = (e: any) => {
+    const data = e.data as SystemEvent;
+    if (data.SessionEvent?.Fragment) {
+      this.draw(data.SessionEvent.Fragment);
+    } else if (typeof data.SessionEvent?.SomeoneJoined !== "undefined") {
+      this.props.toastControl.toast(
+        "Someone joined: " + data.SessionEvent?.SomeoneJoined
+      );
+    } else if (typeof data.SessionEvent?.SomeoneLeft !== "undefined") {
+      this.props.toastControl.toast(
+        "Someone left: " + data.SessionEvent?.SomeoneLeft
+      );
+    }
+  };
+
+  handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (this.prevPos) {
+      const { x, y } = getLocalPos(e);
+      this.sendFragment(x, y);
+    }
+  };
+
+  handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const { x, y } = getLocalPos(e);
-    prevPosRef.current = { x, y };
-  }, []);
+    this.prevPos = { x, y };
+  };
 
-  const handleMouseUp = useCallback((e) => {
-    prevPosRef.current = null;
-  }, []);
+  handleMouseUp = () => {
+    this.prevPos = null;
+  };
 
-  const sendFragment = useCallback(
-    (x: number, y: number) => {
-      system.sendFragment({
-        x1: prevPosRef.current!.x,
-        y1: prevPosRef.current!.y,
-        x2: x,
-        y2: y,
-      });
-    },
-    [system]
-  );
+  handleLeave = async () => {
+    await this.props.systemFacade.leaveSession();
+    this.props.onLeave();
+  };
 
-  const draw = useCallback((fragment: Fragment) => {
+  sendFragment = (x: number, y: number) => {
+    this.props.systemFacade.sendFragment({
+      x1: this.prevPos!.x,
+      y1: this.prevPos!.y,
+      x2: x,
+      y2: y,
+    });
+  };
+
+  draw = (fragment: Fragment) => {
     const { x1, y1, x2, y2 } = fragment;
-    const ctx = canvasRef.current!.getContext("2d")!;
+    const ctx = this.canvasRef.current!.getContext("2d")!;
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
-    prevPosRef.current = { x: x2, y: y2 };
-  }, []);
+    this.prevPos = { x: x2, y: y2 };
+  };
 
-  const handleMouseMove = useCallback(
-    (e) => {
-      if (system && prevPosRef.current) {
-        const { x, y } = getLocalPos(e);
-        sendFragment(x, y);
-      }
-    },
-    [system]
-  );
-
-  const handleLeave = useCallback(async () => {
-    await system.leaveSession();
-    props.onLeave();
-  }, [system]);
-
-  if (!system) {
-    return <div>Loading</div>;
-  } else {
+  render() {
+    const { documentMaterial } = this.state;
     return (
       <div>
         <h1>{documentMaterial?.title}</h1>
         <canvas
-          ref={canvasRef}
+          ref={this.canvasRef}
           width={100}
           height={100}
           style={{ width: 100, height: 100, border: "1px solid silver" }}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
+          onMouseDown={this.handleMouseDown}
+          onMouseMove={this.handleMouseMove}
+          onMouseUp={this.handleMouseUp}
         />
-        <button onClick={handleLeave}>Leave</button>
+        <button onClick={this.handleLeave}>Leave</button>
       </div>
     );
   }
+}
+
+function SystemConsole(props: Props) {
+  const system = useSystemFacade();
+  const toastControl = useToast();
+
+  return (
+    <SystemConsoleInner
+      {...props}
+      systemFacade={system}
+      toastControl={toastControl}
+    />
+  );
 }
 
 export default SystemConsole;
