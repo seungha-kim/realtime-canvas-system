@@ -37,9 +37,13 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
 
   componentDidMount() {
     const { systemFacade } = this.props;
-    systemFacade
-      .materializeDocument()
-      .then((d) => this.setState({ documentMaterial: d }));
+    systemFacade.materializeDocument().then((d) => {
+      this.setState({ documentMaterial: d });
+      systemFacade.addInvalidationListener(
+        d.id,
+        this.handleDocumentMaterialUpdate
+      );
+    });
 
     systemFacade.addEventListener("system", this.systemEventHandler);
   }
@@ -49,7 +53,19 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
       "system",
       this.systemEventHandler
     );
+    if (this.state.documentMaterial) {
+      this.props.systemFacade.removeInvalidationListener(
+        this.state.documentMaterial.id,
+        this.handleDocumentMaterialUpdate
+      );
+    }
   }
+
+  handleDocumentMaterialUpdate = async () => {
+    this.setState({
+      documentMaterial: await this.props.systemFacade.materializeDocument(),
+    });
+  };
 
   systemEventHandler = (e: any) => {
     const data = e.data as SystemEvent;
@@ -87,6 +103,15 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
     this.props.onLeave();
   };
 
+  handleTitleClick = () => {
+    const title = prompt("New title?");
+    if (title) {
+      this.props.systemFacade.pushDocumentCommand({
+        UpdateDocumentTitle: { title },
+      });
+    }
+  };
+
   sendFragment = (x: number, y: number) => {
     this.props.systemFacade.sendFragment({
       x1: this.prevPos!.x,
@@ -109,7 +134,7 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
     const { documentMaterial } = this.state;
     return (
       <div>
-        <h1>{documentMaterial?.title}</h1>
+        <h1 onClick={this.handleTitleClick}>{documentMaterial?.title}</h1>
         <canvas
           ref={this.canvasRef}
           width={100}

@@ -5,28 +5,29 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 pub struct TransactionManager {
-    txs: HashMap<uuid::Uuid, Transaction>,
+    txs: Vec<Transaction>,
 }
 
 impl TransactionManager {
     pub fn new() -> Self {
-        Self {
-            txs: HashMap::new(),
-        }
+        Self { txs: Vec::new() }
     }
 
     pub fn push(&mut self, tx: Transaction) {
         // ASSUME: CommandId 는 u16 으로 충분할 것
-        assert!(!self.txs.contains_key(&tx.id));
-        self.txs.insert(tx.id, tx);
+        debug_assert!(self
+            .txs
+            .iter()
+            .find(|existing| existing.id == tx.id)
+            .is_none());
+        self.txs.push(tx);
     }
 
-    pub fn pop(&mut self, tx_id: &TransactionId) -> Option<Transaction> {
-        self.txs.remove(&tx_id)
-    }
-
-    pub fn get(&self, tx_id: &TransactionId) -> Option<&Transaction> {
-        self.txs.get(tx_id)
+    pub fn remove(&mut self, tx_id: &TransactionId) -> Option<Transaction> {
+        self.txs
+            .iter()
+            .position(|tx| tx.id == *tx_id)
+            .map(|pos| self.txs.remove(pos))
     }
 }
 
@@ -34,7 +35,7 @@ impl PropReadable for TransactionManager {
     fn get_string_prop(&self, target_key: &PropKey) -> Option<&str> {
         let mut result: Option<&str> = None;
         // TODO: 전부 탐색할 필요 없이, 끝에서부터 역순으로 탐색해서 처음으로 만족하는 요소 반환
-        'outer: for (_, tx) in &self.txs {
+        'outer: for tx in &self.txs {
             for command in &tx.items {
                 if let DocumentMutation::UpdateObject(prop_key, prop_value) = command {
                     if target_key == prop_key {

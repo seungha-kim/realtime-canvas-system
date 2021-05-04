@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "target": "ES2015",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "jsx": "react",
     "strict": true,

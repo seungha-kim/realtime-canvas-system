@@ -30,13 +30,10 @@ impl TransactionalStorage {
 
     pub fn handle_command(&mut self, command: DocumentCommand) -> HashSet<ObjectId> {
         let tx = self.convert_command_to_tx(command);
-        let id = tx.id;
+        let invalidated = self.invalidated_object_id(&tx);
         self.tx_manager.push(tx);
         // TODO: validation
-        self.tx_manager
-            .get(&id)
-            .map(|tx| self.invalidated_object_id(tx))
-            .unwrap_or(HashSet::new())
+        invalidated
     }
 
     fn convert_command_to_tx(&self, command: DocumentCommand) -> Transaction {
@@ -86,7 +83,7 @@ impl TransactionalStorage {
     }
 
     fn ack(&mut self, tx_id: &TransactionId) {
-        if let Some(tx) = self.tx_manager.pop(tx_id) {
+        if let Some(tx) = self.tx_manager.remove(tx_id) {
             self.doc_storage.process(tx);
         } else {
             eprintln!("received ack but don't exist: {}", tx_id);
@@ -94,7 +91,7 @@ impl TransactionalStorage {
     }
 
     fn nack(&mut self, tx_id: &TransactionId) {
-        if self.tx_manager.pop(tx_id).is_none() {
+        if self.tx_manager.remove(tx_id).is_none() {
             eprintln!("received nack but don't exist: {}", tx_id);
         }
     }

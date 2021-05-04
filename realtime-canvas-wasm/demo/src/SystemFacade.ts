@@ -58,14 +58,24 @@ type CommandResolver = {
 };
 
 export type DocumentMaterial = {
-  id: string,
-  title: string,
-}
+  id: string;
+  title: string;
+};
+
+export type DocumentCommand = {
+  UpdateDocumentTitle?: { title: string };
+};
+
+type InvalidationListener = (objectId: string) => void;
 
 export class SystemFacade extends EventTarget {
   private system: Promise<CanvasSystem>;
   private ws: WebSocket;
   private commandResolverRegistry: Map<CommandId, CommandResolver> = new Map();
+  private invalidationListeners: Map<
+    string,
+    Set<InvalidationListener>
+  > = new Map();
 
   constructor(url: string) {
     super();
@@ -118,11 +128,30 @@ export class SystemFacade extends EventTarget {
   }
 
   async materializeDocument(): Promise<DocumentMaterial> {
-    return JSON.parse((await this.system).materialize_document())
+    return JSON.parse((await this.system).materialize_document());
   }
 
-  async consumeInvalidatedObjectIds(): Promise<string[]> {
-    return JSON.parse((await this.system).consume_invalidated_object_ids())
+  async pushDocumentCommand(command: DocumentCommand) {
+    (await this.system).push_document_command(JSON.stringify(command));
+    (await this.system).push_document_command(JSON.stringify(command));
+    for (const objectId of await this.consumeInvalidatedObjectIds()) {
+      const listeners = this.invalidationListeners.get(objectId);
+      if (listeners) {
+        for (const listener of listeners.values()) {
+          listener(objectId);
+        }
+      }
+    }
+  }
+
+  addInvalidationListener(objectId: string, listener: InvalidationListener) {
+    const listeners = this.invalidationListeners.get(objectId) ?? new Set();
+    listeners.add(listener);
+    this.invalidationListeners.set(objectId, listeners);
+  }
+
+  removeInvalidationListener(objectId: string, listener: InvalidationListener) {
+    this.invalidationListeners.get(objectId)?.delete(listener);
   }
 
   private async sendCommand(command: SystemCommand): Promise<SystemEvent>;
@@ -207,5 +236,9 @@ export class SystemFacade extends EventTarget {
 
   private static formatJson(obj: any) {
     return JSON.stringify(obj, null, 2);
+  }
+
+  private async consumeInvalidatedObjectIds(): Promise<string[]> {
+    return JSON.parse((await this.system).consume_invalidated_object_ids());
   }
 }
