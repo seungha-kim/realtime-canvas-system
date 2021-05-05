@@ -8,3 +8,4 @@ edition = "2018"
 
 [dependencies]
 realtime-canvas-server = { path = "../realtime-canvas-server" }
+log = "0.4"

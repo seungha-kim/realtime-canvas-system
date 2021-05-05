@@ -26,6 +26,7 @@ impl ClientLeaderDocument {
     }
 
     pub fn handle_command(&mut self, command: DocumentCommand) -> HashSet<ObjectId> {
+        log::debug!("Handle document command: {:?}", command);
         self.storage.handle_command(command)
     }
 }

@@ -56,11 +56,11 @@ impl Actor for ConnectionActor {
 
         tokio::spawn(async move {
             let addr = addr;
-            println!("connection green thread - started");
+            log::info!("connection green thread - started");
             while let Some(msg) = rx.recv().await {
                 addr.try_send(ConnectionActorMessage(msg)).unwrap(); // FIXME: unwrap
             }
-            println!("connection green thread - terminated");
+            log::info!("connection green thread - terminated");
         });
     }
 
@@ -82,12 +82,12 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ConnectionActor {
         match msg {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Binary(bin)) => {
-                println!("Ingress size: {}", bin.len());
+                log::debug!("Ingress size: {}", bin.len());
                 // TODO: 버퍼 넘치면 실패함
                 if let ConnectionState::Connected(from) = self.state {
                     // TODO: unwrap
                     let command = bincode::deserialize::<IdentifiableCommand>(&bin).unwrap();
-                    println!("Ingress {:?}", command);
+                    log::debug!("Ingress {:?}", command);
                     self.srv_tx
                         .try_send(ConnectionCommand::IdentifiableCommand { from, command })
                         .unwrap();
@@ -118,7 +118,7 @@ impl Handler<ConnectionActorMessage> for ConnectionActor {
         ctx: &mut ws::WebsocketContext<Self>,
     ) -> Self::Result {
         let connection_event = &msg.0;
-        println!("Egress {:?}", connection_event);
+        log::debug!("Egress {:?}", connection_event);
         match connection_event {
             ConnectionEvent::Connected { connection_id } => {
                 self.state = ConnectionState::Connected(*connection_id);

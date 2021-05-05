@@ -26,6 +26,7 @@ impl CanvasSystem {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         utils::set_panic_hook();
+        console_log::init_with_level(log::Level::Debug);
 
         CanvasSystem {
             command_id_source: Wrapping(0),
@@ -67,7 +68,7 @@ impl CanvasSystem {
         let command = serde_json::from_str::<DocumentCommand>(&json).unwrap();
 
         if self.invalidated_object_ids.len() > 0 {
-            eprintln!("invalidate_object_ids must be consumed for each command");
+            log::warn!("invalidate_object_ids must be consumed for each command");
         }
         for invalidated_object_id in self.local_document.handle_command(command) {
             self.invalidated_object_ids.insert(invalidated_object_id);

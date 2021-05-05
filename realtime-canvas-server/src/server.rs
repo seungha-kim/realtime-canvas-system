@@ -62,7 +62,7 @@ impl Server {
                 }
                 Err(system_error) => match system_error {
                     SystemError::FatalError(ref fatal_error) => {
-                        println!( // TODO: better logging
+                        log::warn!(
                             "Disconnecting a connection due to fatal error: {}",
                             fatal_error.reason
                         );
@@ -186,8 +186,7 @@ impl Server {
                 }
             }
         } else {
-            // TODO: better logging
-            println!("session has no connection. server state has been corrupted");
+            log::warn!("session has no connection. server state has been corrupted");
         }
     }
 

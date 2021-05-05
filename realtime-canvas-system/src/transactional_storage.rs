@@ -86,13 +86,13 @@ impl TransactionalStorage {
         if let Some(tx) = self.tx_manager.remove(tx_id) {
             self.doc_storage.process(tx);
         } else {
-            eprintln!("received ack but don't exist: {}", tx_id);
+            log::warn!("received ack but don't exist: {}", tx_id);
         }
     }
 
     fn nack(&mut self, tx_id: &TransactionId) {
         if self.tx_manager.remove(tx_id).is_none() {
-            eprintln!("received nack but don't exist: {}", tx_id);
+            log::warn!("received nack but don't exist: {}", tx_id);
         }
     }
 }

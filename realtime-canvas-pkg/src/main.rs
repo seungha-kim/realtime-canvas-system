@@ -17,7 +17,6 @@ async fn app_js(_req: HttpRequest) -> HttpResponse {
 async fn main() -> std::io::Result<()> {
     let srv_tx = spawn_server();
 
-    println!("Server started");
     HttpServer::new(move || {
         App::new()
             .data(srv_tx.clone())

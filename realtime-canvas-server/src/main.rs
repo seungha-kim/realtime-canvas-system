@@ -5,9 +5,10 @@ use realtime_canvas_server::server::spawn_server;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    env_logger::init();
+
     let srv_tx = spawn_server();
 
-    println!("Server started");
     HttpServer::new(move || {
         App::new()
             .data(srv_tx.clone())
