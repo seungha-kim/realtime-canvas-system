@@ -28,71 +28,21 @@ impl TransactionalStorage {
         &mut self.tx_manager
     }
 
-    pub fn handle_command(&mut self, command: DocumentCommand) -> HashSet<ObjectId> {
-        let tx = self.convert_command_to_tx(command);
-        let invalidated = self.invalidated_object_id(&tx);
-        self.tx_manager.push(tx);
+    pub fn begin(&mut self, tx: Transaction) -> Result<(), ()> {
+        self.tx_manager.push(tx.clone());
         // TODO: validation
-        invalidated
-    }
-
-    fn convert_command_to_tx(&self, command: DocumentCommand) -> Transaction {
-        match command {
-            DocumentCommand::UpdateDocumentTitle { title } => {
-                Transaction::new(vec![DocumentMutation::UpdateObject(
-                    PropKey(self.doc_storage.document_id(), "title".into()),
-                    PropValue::String(title),
-                )])
-            }
-            DocumentCommand::CreateCircle { pos, radius } => {
-                let id = uuid::Uuid::new_v4();
-                Transaction::new(vec![
-                    DocumentMutation::CreateObject(id, ObjectType::Document),
-                    DocumentMutation::UpdateObject(
-                        PropKey(id, "posX".into()),
-                        PropValue::Float(pos.x),
-                    ),
-                    DocumentMutation::UpdateObject(
-                        PropKey(id, "posY".into()),
-                        PropValue::Float(pos.y),
-                    ),
-                    DocumentMutation::UpdateObject(
-                        PropKey(id, "radius".into()),
-                        PropValue::Float(radius),
-                    ),
-                ])
-            }
-            _ => unimplemented!(),
-        }
-    }
-
-    fn invalidated_object_id(&self, tx: &Transaction) -> HashSet<ObjectId> {
-        tx.items
-            .iter()
-            .map(|m| match m {
-                DocumentMutation::CreateObject(object_id, _) => object_id.clone(),
-                DocumentMutation::UpdateObject(prop_key, _) => prop_key.0,
-                DocumentMutation::DeleteObject(object_id) => object_id.clone(),
-            })
-            .collect()
-    }
-
-    fn process(&mut self, tx: Transaction) -> Result<(), ()> {
-        self.tx_manager.push(tx);
         Ok(())
     }
 
-    fn ack(&mut self, tx_id: &TransactionId) {
+    pub fn finish(&mut self, tx_id: &TransactionId, commit: bool) -> Result<Transaction, ()> {
         if let Some(tx) = self.tx_manager.remove(tx_id) {
-            self.doc_storage.process(tx);
+            if commit {
+                self.doc_storage.process(tx.clone());
+            }
+            Ok(tx)
         } else {
-            log::warn!("received ack but don't exist: {}", tx_id);
-        }
-    }
-
-    fn nack(&mut self, tx_id: &TransactionId) {
-        if self.tx_manager.remove(tx_id).is_none() {
-            log::warn!("received nack but don't exist: {}", tx_id);
+            log::warn!("Tried to finish transaction but doesn't exists: {}", tx_id);
+            Err(())
         }
     }
 }

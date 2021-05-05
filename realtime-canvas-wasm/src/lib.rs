@@ -1,9 +1,10 @@
 use realtime_canvas_system::{
-    bincode, serde_json, ClientLeaderDocument, CommandId, DocumentCommand, IdentifiableCommand,
-    IdentifiableEvent, Materialize, ObjectId, SystemCommand,
+    bincode, serde_json, ClientReplicaDocument, CommandId, DocumentCommand, IdentifiableCommand,
+    IdentifiableEvent, Materialize, ObjectId, SessionCommand, SystemCommand, Transaction,
 };
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use std::num::Wrapping;
+use wasm_bindgen::__rt::std::alloc::System;
 use wasm_bindgen::prelude::*;
 
 mod utils;
@@ -17,8 +18,9 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[wasm_bindgen]
 pub struct CanvasSystem {
     command_id_source: Wrapping<CommandId>,
-    local_document: ClientLeaderDocument,
+    local_document: ClientReplicaDocument,
     invalidated_object_ids: HashSet<ObjectId>,
+    pending_identifiable_commands: VecDeque<IdentifiableCommand>,
 }
 
 #[wasm_bindgen]
@@ -26,12 +28,13 @@ impl CanvasSystem {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         utils::set_panic_hook();
-        console_log::init_with_level(log::Level::Debug);
+        console_log::init_with_level(log::Level::Trace);
 
         CanvasSystem {
             command_id_source: Wrapping(0),
-            local_document: ClientLeaderDocument::new(),
+            local_document: ClientReplicaDocument::new(),
             invalidated_object_ids: HashSet::new(),
+            pending_identifiable_commands: VecDeque::new(),
         }
     }
 
@@ -70,8 +73,19 @@ impl CanvasSystem {
         if self.invalidated_object_ids.len() > 0 {
             log::warn!("invalidate_object_ids must be consumed for each command");
         }
-        for invalidated_object_id in self.local_document.handle_command(command) {
-            self.invalidated_object_ids.insert(invalidated_object_id);
+        // TODO: Err
+        if let Ok(result) = self.local_document.handle_command(command) {
+            for invalidated_object_id in result.invalidated_object_ids {
+                self.invalidated_object_ids.insert(invalidated_object_id);
+            }
+            let command_id = self.new_command_id();
+            self.pending_identifiable_commands
+                .push_back(IdentifiableCommand {
+                    command_id,
+                    system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(
+                        result.transaction,
+                    )),
+                });
         }
     }
 
@@ -79,6 +93,17 @@ impl CanvasSystem {
         let result = serde_json::to_string(&self.invalidated_object_ids).unwrap();
         self.invalidated_object_ids.clear();
         result
+    }
+
+    pub fn consume_pending_identifiable_command(&mut self) -> Option<Box<[u8]>> {
+        self.pending_identifiable_commands
+            .pop_front()
+            .and_then(|command| {
+                log::trace!("Consumed: {:?}", command);
+                bincode::serialize(&command)
+                    .ok()
+                    .map(|v| v.into_boxed_slice())
+            })
     }
 
     pub fn materialize_document(&self) -> String {

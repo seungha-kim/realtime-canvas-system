@@ -8,25 +8,28 @@ use super::types::*;
 use crate::traits::PropReadable;
 use crate::DocumentCommand;
 
-pub struct ClientLeaderDocument {
+pub struct ServerLeaderDocument {
     storage: TransactionalStorage,
 }
 
-impl Materialize<TransactionalStorage> for ClientLeaderDocument {
+impl Materialize<TransactionalStorage> for ServerLeaderDocument {
     fn readable(&self) -> &TransactionalStorage {
         &self.storage
     }
 }
 
-impl ClientLeaderDocument {
+impl ServerLeaderDocument {
     pub fn new() -> Self {
         Self {
             storage: TransactionalStorage::new(),
         }
     }
 
-    pub fn handle_command(&mut self, command: DocumentCommand) -> HashSet<ObjectId> {
-        log::debug!("Handle document command: {:?}", command);
-        self.storage.handle_command(command)
+    pub fn process_transaction(&mut self, tx: Transaction) -> Result<Transaction, ()> {
+        let tx_id = tx.id;
+        self.storage.begin(tx.clone());
+        // TODO: validation
+        self.storage.finish(&tx_id, true);
+        Ok(tx)
     }
 }

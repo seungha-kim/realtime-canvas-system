@@ -39,7 +39,7 @@ pub enum PropName {
 
 pub type TransactionId = uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transaction {
     pub id: TransactionId,
     pub items: Vec<DocumentMutation>,

@@ -92,13 +92,13 @@ pub enum DocumentMutation {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum TransactionNackReason {
+pub enum RollbackReason {
     Something,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum DocumentEvent {
-    TransactionAck,
-    TransactionNack(TransactionNackReason),
+    TransactionAck(TransactionId),
+    TransactionNack(TransactionId, RollbackReason),
     OthersTransaction(Transaction),
 }
