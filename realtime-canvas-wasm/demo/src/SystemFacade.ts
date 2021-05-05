@@ -133,7 +133,6 @@ export class SystemFacade extends EventTarget {
 
   async pushDocumentCommand(command: DocumentCommand) {
     (await this.system).push_document_command(JSON.stringify(command));
-    (await this.system).push_document_command(JSON.stringify(command));
     for (const objectId of await this.consumeInvalidatedObjectIds()) {
       const listeners = this.invalidationListeners.get(objectId);
       if (listeners) {
