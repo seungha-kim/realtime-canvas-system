@@ -13,6 +13,7 @@ pub struct Fragment {
     pub y2: f32,
 }
 
+// TODO: 이건 뭐지?? 이름만 보면 여기에 client_replica_document 있어야 할 것 같은데
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionState {
     pub connections: Vec<ConnectionId>,
@@ -20,7 +21,7 @@ pub struct SessionState {
 
 pub type ObjectId = uuid::Uuid;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct PropKey(pub ObjectId, pub String);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

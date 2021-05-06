@@ -1,6 +1,7 @@
 use realtime_canvas_system::{
-    bincode, serde_json, ClientReplicaDocument, CommandId, DocumentCommand, IdentifiableCommand,
-    IdentifiableEvent, Materialize, ObjectId, SessionCommand, SystemCommand, Transaction,
+    bincode, serde_json, ClientReplicaDocument, CommandId, CommandResult, DocumentCommand,
+    IdentifiableCommand, IdentifiableEvent, Materialize, ObjectId, SessionCommand, SessionEvent,
+    SessionId, SystemCommand, SystemEvent, Transaction,
 };
 use std::collections::{HashSet, VecDeque};
 use std::num::Wrapping;
@@ -15,12 +16,22 @@ mod utils;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
+enum SystemState {
+    Lobby,
+    Joined(SessionState),
+}
+
+struct SessionState {
+    session_id: SessionId,
+    document: ClientReplicaDocument,
+    invalidated_object_ids: HashSet<ObjectId>,
+}
+
 #[wasm_bindgen]
 pub struct CanvasSystem {
     command_id_source: Wrapping<CommandId>,
-    local_document: ClientReplicaDocument,
-    invalidated_object_ids: HashSet<ObjectId>,
     pending_identifiable_commands: VecDeque<IdentifiableCommand>,
+    state: SystemState,
 }
 
 #[wasm_bindgen]
@@ -32,9 +43,8 @@ impl CanvasSystem {
 
         CanvasSystem {
             command_id_source: Wrapping(0),
-            local_document: ClientReplicaDocument::new(),
-            invalidated_object_ids: HashSet::new(),
             pending_identifiable_commands: VecDeque::new(),
+            state: SystemState::Lobby,
         }
     }
 
@@ -55,6 +65,72 @@ impl CanvasSystem {
         serde_json::to_string(&event).unwrap()
     }
 
+    pub fn push_event(&mut self, bytes: &[u8]) {
+        let event = bincode::deserialize::<IdentifiableEvent>(bytes).unwrap();
+        log::trace!("New event from server: {:?}", event);
+        let system_event = match event {
+            IdentifiableEvent::ByMyself { command_id, result } => match result {
+                CommandResult::SystemEvent(system_event) => system_event,
+                CommandResult::Error(system_error) => panic!("SystemError: {:?}", system_error),
+            },
+            IdentifiableEvent::BySystem { system_event } => system_event,
+        };
+        match system_event {
+            SystemEvent::SessionEvent(session_event) => match session_event {
+                SessionEvent::TransactionAck(tx_id) => {
+                    if let SystemState::Joined(ref mut session_state) = self.state {
+                        session_state.document.handle_ack(&tx_id);
+                    } else {
+                        log::warn!("System isn't a session");
+                    }
+                }
+                SessionEvent::TransactionNack(tx_id, _reason) => {
+                    if let SystemState::Joined(ref mut session_state) = self.state {
+                        session_state.document.handle_nack(&tx_id);
+                    } else {
+                        log::warn!("System isn't a session");
+                    }
+                }
+                SessionEvent::OthersTransaction(tx) => {
+                    if let SystemState::Joined(ref mut session_state) = self.state {
+                        if let Ok(result) = session_state.document.handle_transaction(tx) {
+                            for id in result.invalidated_object_ids {
+                                session_state.invalidated_object_ids.insert(id);
+                            }
+                        }
+                    } else {
+                        log::warn!("System isn't in a session");
+                    }
+                }
+                SessionEvent::SomeoneJoined(connection_id) => {
+                    // TODO: invalidate UI from system
+                    log::info!("{} joined", connection_id);
+                }
+                SessionEvent::SomeoneLeft(connection_id) => {
+                    // TODO: invalidate UI from system
+                    log::info!("{} left", connection_id);
+                }
+                SessionEvent::Fragment(fragment) => {
+                    log::trace!("Fragment: {:?}", fragment);
+                }
+            },
+            SystemEvent::JoinedSession {
+                session_id,
+                document_snapshot,
+                initial_state,
+            } => {
+                self.state = SystemState::Joined(SessionState {
+                    session_id,
+                    document: ClientReplicaDocument::new(document_snapshot),
+                    invalidated_object_ids: HashSet::new(),
+                })
+            }
+            system_event => {
+                log::warn!("Unhandled SystemEvent: {:?}", system_event);
+            }
+        }
+    }
+
     pub fn last_command_id(&self) -> CommandId {
         self.command_id_source.0
     }
@@ -68,31 +144,46 @@ impl CanvasSystem {
     }
 
     pub fn push_document_command(&mut self, json: String) {
-        let command = serde_json::from_str::<DocumentCommand>(&json).unwrap();
+        if let SystemState::Joined(ref mut session_state) = self.state {
+            let command = serde_json::from_str::<DocumentCommand>(&json).unwrap();
 
-        if self.invalidated_object_ids.len() > 0 {
-            log::warn!("invalidate_object_ids must be consumed for each command");
-        }
-        // TODO: Err
-        if let Ok(result) = self.local_document.handle_command(command) {
-            for invalidated_object_id in result.invalidated_object_ids {
-                self.invalidated_object_ids.insert(invalidated_object_id);
+            if session_state.invalidated_object_ids.len() > 0 {
+                log::warn!("invalidate_object_ids must be consumed for each command");
             }
-            let command_id = self.new_command_id();
-            self.pending_identifiable_commands
-                .push_back(IdentifiableCommand {
-                    command_id,
-                    system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(
-                        result.transaction,
-                    )),
-                });
+            // TODO: Err
+            if let Ok(result) = session_state.document.handle_command(command) {
+                for invalidated_object_id in result.invalidated_object_ids {
+                    session_state
+                        .invalidated_object_ids
+                        .insert(invalidated_object_id);
+                }
+                let command_id = self.new_command_id();
+                self.pending_identifiable_commands
+                    .push_back(IdentifiableCommand {
+                        command_id,
+                        system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(
+                            result.transaction,
+                        )),
+                    });
+            }
+        } else {
+            log::warn!("System isn't in a session");
         }
     }
 
     pub fn consume_invalidated_object_ids(&mut self) -> String {
-        let result = serde_json::to_string(&self.invalidated_object_ids).unwrap();
-        self.invalidated_object_ids.clear();
-        result
+        if let SystemState::Joined(ref mut session_state) = self.state {
+            log::trace!(
+                "Objects being invalidated: {:?}",
+                session_state.invalidated_object_ids
+            );
+            let result = serde_json::to_string(&session_state.invalidated_object_ids).unwrap();
+            session_state.invalidated_object_ids.clear();
+            result
+        } else {
+            log::warn!("System isn't in a session");
+            "[]".into()
+        }
     }
 
     pub fn consume_pending_identifiable_command(&mut self) -> Option<Box<[u8]>> {
@@ -107,7 +198,12 @@ impl CanvasSystem {
     }
 
     pub fn materialize_document(&self) -> String {
-        let document = self.local_document.materialize_document();
-        return serde_json::to_string(&document).unwrap();
+        if let SystemState::Joined(ref session_state) = self.state {
+            let document = session_state.document.materialize_document();
+            return serde_json::to_string(&document).unwrap();
+        } else {
+            log::warn!("System isn't a session");
+            "{}".into()
+        }
     }
 }

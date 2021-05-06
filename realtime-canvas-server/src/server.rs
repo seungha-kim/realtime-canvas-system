@@ -1,9 +1,9 @@
 use tokio::sync::mpsc::{channel, Sender};
 
 use realtime_canvas_system::{
-    CommandResult, ConnectionId, FatalError, IdentifiableCommand, IdentifiableEvent,
-    SessionCommand, SessionError, SessionEvent, SessionId, SessionState, SystemCommand,
-    SystemError, SystemEvent,
+    CommandResult, ConnectionId, DocumentReadable, FatalError, IdentifiableCommand,
+    IdentifiableEvent, RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
+    SessionState, SystemCommand, SystemError, SystemEvent,
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
@@ -92,15 +92,16 @@ impl Server {
         match command {
             SystemCommand::CreateSession => {
                 let session_id = self.server_state.create_session(from);
-                let connections = self
+                let session = self
                     .server_state
                     .sessions
                     .get(&session_id)
-                    .expect("connection vector must exist")
-                    .clone();
+                    .expect("connection vector must exist");
+                let connections = session.connections.clone();
                 Ok(SystemEvent::JoinedSession {
                     session_id,
                     initial_state: SessionState { connections },
+                    document_snapshot: session.document.snapshot(),
                 })
             }
             SystemCommand::JoinSession { session_id } => {
@@ -112,15 +113,16 @@ impl Server {
                         Some(from),
                     )
                     .await;
-                    let connections = self
+                    let session = self
                         .server_state
                         .sessions
                         .get(&session_id)
-                        .expect("connection vector must exists")
-                        .clone();
+                        .expect("connection vector must exists");
+                    let connections = session.connections.clone();
                     Ok(SystemEvent::JoinedSession {
                         session_id: session_id.clone(),
                         initial_state: SessionState { connections },
+                        document_snapshot: session.document.snapshot(),
                     })
                 } else {
                     Err(SystemError::InvalidSessionId)
@@ -155,11 +157,35 @@ impl Server {
         {
             let session_id = session_id.clone();
             match command {
-                SessionCommand::Fragment(ref fragment) => {
+                SessionCommand::Fragment(fragment) => {
                     let session_event = SessionEvent::Fragment(fragment.clone());
                     self.broadcast_session_event(&session_id, session_event.clone(), Some(from))
                         .await;
                     Ok(session_event)
+                }
+                SessionCommand::Transaction(tx) => {
+                    let result = self
+                        .server_state
+                        .sessions
+                        .get_mut(&session_id)
+                        .unwrap()
+                        .document
+                        .process_transaction(tx.clone());
+                    if let Ok(tx) = result {
+                        let session_event = SessionEvent::TransactionAck(tx.id.clone());
+                        self.broadcast_session_event(
+                            &session_id,
+                            SessionEvent::OthersTransaction(tx),
+                            Some(from),
+                        )
+                        .await;
+                        Ok(session_event)
+                    } else {
+                        Ok(SessionEvent::TransactionNack(
+                            tx.id.clone(),
+                            RollbackReason::Something,
+                        ))
+                    }
                 }
                 _ => unimplemented!(),
             }

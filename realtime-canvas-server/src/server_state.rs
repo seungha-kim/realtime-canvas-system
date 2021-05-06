@@ -1,3 +1,4 @@
+use crate::session::Session;
 use realtime_canvas_system::{ConnectionId, SessionId};
 use std::collections::HashMap;
 use std::num::Wrapping;
@@ -12,7 +13,7 @@ pub struct ServerState {
     pub connection_states: HashMap<ConnectionId, ConnectionState>,
 
     pub session_id_source: Wrapping<SessionId>,
-    pub sessions: HashMap<SessionId, Vec<ConnectionId>>,
+    pub sessions: HashMap<SessionId, Session>,
 }
 
 #[derive(Debug)]
@@ -42,7 +43,7 @@ impl ServerState {
 
     pub fn create_session(&mut self, by: &ConnectionId) -> SessionId {
         let session_id = self.new_session_id();
-        self.sessions.insert(session_id, Vec::new());
+        self.sessions.insert(session_id, Session::new());
         self.join_session(by, &session_id).unwrap();
         session_id
     }
@@ -56,7 +57,7 @@ impl ServerState {
             if self
                 .sessions
                 .get_mut(&session_id)
-                .map(|v| v.push(connection_id.clone()))
+                .map(|s| s.connections.push(connection_id.clone()))
                 .is_none()
             {
                 Err(ServerError::InvalidSessionId)
@@ -78,14 +79,14 @@ impl ServerState {
             let session_id = session_id.clone();
             self.sessions
                 .get_mut(&session_id)
-                .map(|v| v.retain(|e| e != connection_id));
+                .map(|s| s.connections.retain(|e| e != connection_id));
             self.connection_states
                 .get_mut(&connection_id)
                 .map(|s| *s = ConnectionState::InLobby);
             if self
                 .sessions
                 .get(&session_id)
-                .map(|v| v.is_empty())
+                .map(|s| s.connections.is_empty())
                 .unwrap_or(false)
             {
                 self.sessions.remove(&session_id);
@@ -106,7 +107,7 @@ impl ServerState {
     ) -> Result<&[ConnectionId], ServerError> {
         self.sessions
             .get(&session_id)
-            .map(|v| v.as_slice())
+            .map(|s| s.connections.as_slice())
             .ok_or(ServerError::InvalidCommandForState)
     }
 

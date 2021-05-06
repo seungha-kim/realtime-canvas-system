@@ -11,9 +11,11 @@ mod types;
 
 pub use client_replica_document::*;
 pub use document_command::*;
+pub use document_storage::*;
 pub use materialize::*;
 pub use message::*;
 pub use server_leader_document::*;
+pub use traits::*;
 pub use types::*;
 
 pub extern crate bincode;

@@ -6,7 +6,7 @@ use crate::transactional_storage::TransactionalStorage;
 use super::message::*;
 use super::types::*;
 use crate::traits::{DocumentReadable, PropReadable};
-use crate::DocumentCommand;
+use crate::{DocumentCommand, DocumentSnapshot, DocumentStorage};
 
 pub struct ClientReplicaDocument {
     storage: TransactionalStorage,
@@ -24,9 +24,9 @@ pub struct TransactionResult {
 }
 
 impl ClientReplicaDocument {
-    pub fn new() -> Self {
+    pub fn new(snapshot: DocumentSnapshot) -> Self {
         Self {
-            storage: TransactionalStorage::new(),
+            storage: TransactionalStorage::from_snapshot(snapshot),
         }
     }
 
@@ -42,7 +42,7 @@ impl ClientReplicaDocument {
     }
 
     pub fn handle_transaction(&mut self, tx: Transaction) -> Result<TransactionResult, ()> {
-        log::debug!("Handle others transaction: {:?}", tx);
+        log::info!("Handle others transaction: {:?}", tx);
         // TODO: Err
         self.storage.begin(tx.clone());
         self.storage.finish(&tx.id, true);
@@ -53,6 +53,7 @@ impl ClientReplicaDocument {
     }
 
     pub fn handle_ack(&mut self, tx_id: &TransactionId) -> Result<TransactionResult, ()> {
+        log::info!("Ack: {:?}", tx_id);
         if let Ok(tx) = self.storage.finish(tx_id, true) {
             Ok(TransactionResult {
                 invalidated_object_ids: self.invalidated_object_ids(&tx),
@@ -64,6 +65,7 @@ impl ClientReplicaDocument {
     }
 
     pub fn handle_nack(&mut self, tx_id: &TransactionId) -> Result<TransactionResult, ()> {
+        log::info!("Nack: {:?}", tx_id);
         if let Ok(tx) = self.storage.finish(tx_id, false) {
             Ok(TransactionResult {
                 invalidated_object_ids: self.invalidated_object_ids(&tx),

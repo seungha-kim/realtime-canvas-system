@@ -21,6 +21,13 @@ impl TransactionalStorage {
             tx_manager: TransactionManager::new(),
         }
     }
+
+    pub fn from_snapshot(snapshot: DocumentSnapshot) -> Self {
+        Self {
+            doc_storage: (&snapshot).into(),
+            tx_manager: TransactionManager::new(),
+        }
+    }
 }
 
 impl TransactionalStorage {
@@ -58,5 +65,9 @@ impl PropReadable for TransactionalStorage {
 impl DocumentReadable for TransactionalStorage {
     fn document_id(&self) -> Uuid {
         self.doc_storage.document_id()
+    }
+
+    fn snapshot(&self) -> DocumentSnapshot {
+        self.doc_storage.snapshot()
     }
 }

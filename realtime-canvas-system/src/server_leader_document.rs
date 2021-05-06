@@ -5,8 +5,9 @@ use crate::transactional_storage::TransactionalStorage;
 
 use super::message::*;
 use super::types::*;
-use crate::traits::PropReadable;
-use crate::DocumentCommand;
+use crate::traits::{DocumentReadable, PropReadable};
+use crate::{DocumentCommand, DocumentSnapshot, DocumentStorage};
+use uuid::Uuid;
 
 pub struct ServerLeaderDocument {
     storage: TransactionalStorage,
@@ -31,5 +32,15 @@ impl ServerLeaderDocument {
         // TODO: validation
         self.storage.finish(&tx_id, true);
         Ok(tx)
+    }
+}
+
+impl DocumentReadable for ServerLeaderDocument {
+    fn document_id(&self) -> Uuid {
+        unimplemented!()
+    }
+
+    fn snapshot(&self) -> DocumentSnapshot {
+        self.storage.snapshot()
     }
 }

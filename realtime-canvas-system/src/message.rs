@@ -1,4 +1,6 @@
 use super::types::*;
+use crate::document_storage::DocumentStorage;
+use crate::DocumentSnapshot;
 use serde::{Deserialize, Serialize};
 
 // FIXME: 서버 측 ConnectionCommand 가 Debug 를 필요로 함
@@ -48,6 +50,7 @@ pub enum SystemEvent {
     JoinedSession {
         session_id: SessionId,
         initial_state: SessionState,
+        document_snapshot: DocumentSnapshot,
     },
     LeftSession,
     SessionEvent(SessionEvent),
@@ -71,6 +74,9 @@ pub enum SessionEvent {
     Fragment(Fragment),
     SomeoneJoined(ConnectionId),
     SomeoneLeft(ConnectionId),
+    TransactionAck(TransactionId),
+    TransactionNack(TransactionId, RollbackReason),
+    OthersTransaction(Transaction),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -91,14 +97,7 @@ pub enum DocumentMutation {
     DeleteObject(ObjectId),
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum RollbackReason {
     Something,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum DocumentEvent {
-    TransactionAck(TransactionId),
-    TransactionNack(TransactionId, RollbackReason),
-    OthersTransaction(Transaction),
 }

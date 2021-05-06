@@ -1,3 +1,4 @@
+use crate::document_storage::DocumentSnapshot;
 use crate::message::DocumentMutation;
 use crate::PropKey;
 
@@ -7,4 +8,6 @@ pub trait PropReadable {
 
 pub trait DocumentReadable {
     fn document_id(&self) -> uuid::Uuid;
+
+    fn snapshot(&self) -> DocumentSnapshot;
 }

@@ -97,6 +97,9 @@ export class SystemFacade extends EventTarget {
       const json = (await this.system).convert_event_to_json(buf);
       const parsed: IdentifiableEvent = JSON.parse(json);
       this.handleIdentifiableEvent(parsed);
+
+      (await this.system).push_event(buf);
+      await this.notifyInvalidation();
     });
   }
 
@@ -133,7 +136,22 @@ export class SystemFacade extends EventTarget {
 
   async pushDocumentCommand(command: DocumentCommand) {
     (await this.system).push_document_command(JSON.stringify(command));
-    for (const objectId of await this.consumeInvalidatedObjectIds()) {
+    await this.notifyInvalidation();
+    while (true) {
+      const pendingCommand = (
+        await this.system
+      ).consume_pending_identifiable_command();
+      if (pendingCommand) {
+        this.ws.send(pendingCommand);
+      } else {
+        break;
+      }
+    }
+  }
+
+  async notifyInvalidation() {
+    const invalidatedObjectIds = await this.consumeInvalidatedObjectIds();
+    for (const objectId of invalidatedObjectIds) {
       const listeners = this.invalidationListeners.get(objectId);
       if (listeners) {
         for (const listener of listeners.values()) {

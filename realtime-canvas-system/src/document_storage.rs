@@ -4,6 +4,7 @@ use crate::traits::{DocumentReadable, PropReadable};
 
 use super::types::*;
 use crate::message::*;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // TODO: tree - cyclic reference detection
@@ -13,6 +14,7 @@ use uuid::Uuid;
 
 // atomicity 를 유지해야 하는 단위로 데이터를 저장하는 key value store. 그 밖에 대해서는 모른다. (undo 라던가)
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentStorage {
     document_id: uuid::Uuid,
     objects: HashMap<ObjectId, ObjectType>,
@@ -77,5 +79,28 @@ impl PropReadable for DocumentStorage {
 impl DocumentReadable for DocumentStorage {
     fn document_id(&self) -> Uuid {
         self.document_id
+    }
+
+    fn snapshot(&self) -> DocumentSnapshot {
+        self.into()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentSnapshot {
+    content: Vec<u8>,
+}
+
+impl From<&DocumentStorage> for DocumentSnapshot {
+    fn from(d: &DocumentStorage) -> Self {
+        DocumentSnapshot {
+            content: bincode::serialize(d).unwrap(),
+        }
+    }
+}
+
+impl From<&DocumentSnapshot> for DocumentStorage {
+    fn from(snapshot: &DocumentSnapshot) -> Self {
+        bincode::deserialize(&snapshot.content).unwrap()
     }
 }

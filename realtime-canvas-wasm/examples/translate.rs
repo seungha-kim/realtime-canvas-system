@@ -1,4 +1,6 @@
-use realtime_canvas_system::{bincode, IdentifiableEvent, SessionState, SystemEvent};
+use realtime_canvas_system::{
+    bincode, DocumentStorage, IdentifiableEvent, SessionState, SystemEvent,
+};
 use realtime_canvas_wasm::CanvasSystem;
 
 fn main() {
@@ -8,6 +10,7 @@ fn main() {
             initial_state: SessionState {
                 connections: Vec::new(),
             },
+            document: DocumentStorage::new(),
         },
     };
     let serialized = bincode::serialize(&event).unwrap();
