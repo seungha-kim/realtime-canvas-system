@@ -1,6 +1,5 @@
 use crate::message::*;
 use crate::traits::{DocumentReadable, PropReadable};
-use crate::types::*;
 
 use super::document_storage::*;
 use super::transaction_manager::*;

@@ -4,7 +4,6 @@ use crate::materialize::Materialize;
 use crate::transactional_storage::TransactionalStorage;
 
 use super::message::*;
-use super::types::*;
 use crate::traits::{DocumentReadable, PropReadable};
 use crate::{DocumentCommand, DocumentSnapshot, DocumentStorage};
 use uuid::Uuid;

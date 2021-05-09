@@ -1,6 +1,5 @@
 use super::message::*;
 use super::traits::PropReadable;
-use super::types::*;
 use std::collections::HashMap;
 use uuid::Uuid;
 

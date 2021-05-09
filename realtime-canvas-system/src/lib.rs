@@ -7,7 +7,6 @@ mod server_leader_document;
 mod traits;
 mod transaction_manager;
 mod transactional_storage;
-mod types;
 
 pub use client_replica_document::*;
 pub use document_command::*;
@@ -16,7 +15,6 @@ pub use materialize::*;
 pub use message::*;
 pub use server_leader_document::*;
 pub use traits::*;
-pub use types::*;
 
 pub extern crate bincode;
 pub extern crate euclid;

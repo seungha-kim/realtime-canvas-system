@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::traits::{DocumentReadable, PropReadable};
 
-use super::types::*;
 use crate::message::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

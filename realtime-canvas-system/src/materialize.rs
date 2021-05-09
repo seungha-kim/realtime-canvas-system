@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::traits::{DocumentReadable, PropReadable};
 
 use super::document_storage::DocumentStorage;
-use super::types::*;
+use crate::message::*;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentMaterial {
