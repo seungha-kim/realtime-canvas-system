@@ -52,7 +52,7 @@ pub enum SystemEvent {
     },
     JoinedSession {
         session_id: SessionId,
-        initial_state: SessionState,
+        session_snapshot: SessionSnapshot,
         document_snapshot: DocumentSnapshot,
     },
     LeftSession,
@@ -75,6 +75,7 @@ pub enum SessionCommand {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SessionEvent {
     Fragment(Fragment),
+    SessionStateChanged(SessionSnapshot),
     SomeoneJoined(ConnectionId),
     SomeoneLeft(ConnectionId),
     TransactionAck(TransactionId),
@@ -114,7 +115,7 @@ pub struct Fragment {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionState {
+pub struct SessionSnapshot {
     pub connections: Vec<ConnectionId>,
 }
 

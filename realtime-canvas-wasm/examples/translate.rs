@@ -1,5 +1,5 @@
 use realtime_canvas_system::{
-    bincode, DocumentStorage, IdentifiableEvent, SessionState, SystemEvent,
+    bincode, DocumentStorage, IdentifiableEvent, SessionSnapshot, SystemEvent,
 };
 use realtime_canvas_wasm::CanvasSystem;
 
@@ -7,7 +7,7 @@ fn main() {
     let event = IdentifiableEvent::BySystem {
         system_event: SystemEvent::JoinedSession {
             session_id: 1,
-            initial_state: SessionState {
+            session_snapshot: SessionSnapshot {
                 connections: Vec::new(),
             },
             document: DocumentStorage::new(),

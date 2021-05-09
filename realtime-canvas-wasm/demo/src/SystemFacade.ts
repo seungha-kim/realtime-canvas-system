@@ -43,15 +43,6 @@ interface IdentifiableEvent {
   };
 }
 
-class SystemFacadeEvent extends Event {
-  data: SystemEvent;
-
-  constructor(type: string, data: SystemEvent) {
-    super(type);
-    this.data = data;
-  }
-}
-
 type CommandResolver = {
   resolve: (value: SystemEvent) => void;
   reject: (error: any) => void;
@@ -67,8 +58,12 @@ export type DocumentCommand = {
 };
 
 type InvalidationListener = (objectId: string) => void;
+type SessionSnapshotListener = (sessionSnapshot: SessionSnapshot) => void;
+export type SessionSnapshot = {
+  connections: number[];
+};
 
-export class SystemFacade extends EventTarget {
+export class SystemFacade {
   private system: Promise<CanvasSystem>;
   private ws: WebSocket;
   private commandResolverRegistry: Map<CommandId, CommandResolver> = new Map();
@@ -76,9 +71,9 @@ export class SystemFacade extends EventTarget {
     string,
     Set<InvalidationListener>
   > = new Map();
+  private sessionSnapshotChangeListeners: Set<SessionSnapshotListener> = new Set();
 
   constructor(url: string) {
-    super();
     this.system = init(mod).then(() => {
       const system = new CanvasSystem();
       (window as any).system = system;
@@ -98,8 +93,9 @@ export class SystemFacade extends EventTarget {
       const parsed: IdentifiableEvent = JSON.parse(json);
       this.handleIdentifiableEvent(parsed);
 
-      (await this.system).push_event(buf);
-      await this.notifyInvalidation();
+      (await this.system).handle_event_from_server(buf);
+      await this.notifyObjectInvalidation();
+      await this.notifySessionSnapshotInvalidation();
     });
   }
 
@@ -134,9 +130,13 @@ export class SystemFacade extends EventTarget {
     return JSON.parse((await this.system).materialize_document());
   }
 
+  async materializeSession(): Promise<SessionSnapshot> {
+    return JSON.parse((await this.system).materialize_session());
+  }
+
   async pushDocumentCommand(command: DocumentCommand) {
     (await this.system).push_document_command(JSON.stringify(command));
-    await this.notifyInvalidation();
+    await this.notifyObjectInvalidation();
     while (true) {
       const pendingCommand = (
         await this.system
@@ -149,7 +149,25 @@ export class SystemFacade extends EventTarget {
     }
   }
 
-  async notifyInvalidation() {
+  addInvalidationListener(objectId: string, listener: InvalidationListener) {
+    const listeners = this.invalidationListeners.get(objectId) ?? new Set();
+    listeners.add(listener);
+    this.invalidationListeners.set(objectId, listeners);
+  }
+
+  removeInvalidationListener(objectId: string, listener: InvalidationListener) {
+    this.invalidationListeners.get(objectId)?.delete(listener);
+  }
+
+  addSessionSnapshotChangeListener(listener: SessionSnapshotListener) {
+    this.sessionSnapshotChangeListeners.add(listener);
+  }
+
+  removeSessionSnapshotChangeListener(listener: SessionSnapshotListener) {
+    this.sessionSnapshotChangeListeners.delete(listener);
+  }
+
+  private async notifyObjectInvalidation() {
     const invalidatedObjectIds = await this.consumeInvalidatedObjectIds();
     for (const objectId of invalidatedObjectIds) {
       const listeners = this.invalidationListeners.get(objectId);
@@ -161,14 +179,14 @@ export class SystemFacade extends EventTarget {
     }
   }
 
-  addInvalidationListener(objectId: string, listener: InvalidationListener) {
-    const listeners = this.invalidationListeners.get(objectId) ?? new Set();
-    listeners.add(listener);
-    this.invalidationListeners.set(objectId, listeners);
-  }
-
-  removeInvalidationListener(objectId: string, listener: InvalidationListener) {
-    this.invalidationListeners.get(objectId)?.delete(listener);
+  private async notifySessionSnapshotInvalidation() {
+    const snapshotJson = (await this.system).consume_latest_session_snapshot();
+    if (snapshotJson) {
+      const parsed = JSON.parse(snapshotJson);
+      for (const listener of this.sessionSnapshotChangeListeners) {
+        listener(parsed);
+      }
+    }
   }
 
   private async sendCommand(command: SystemCommand): Promise<SystemEvent>;
@@ -199,14 +217,10 @@ export class SystemFacade extends EventTarget {
   }
 
   private handleIdentifiableEvent(event: IdentifiableEvent) {
-    SystemFacade.logEvent(event);
     const systemEvent =
       event.BySystem?.system_event ??
       event.ByMyself?.result?.SystemEvent ??
       null;
-    if (systemEvent) {
-      this.dispatchEvent(new SystemFacadeEvent("system", systemEvent));
-    }
 
     if (
       event.ByMyself &&
@@ -231,23 +245,6 @@ export class SystemFacade extends EventTarget {
       console.debug(this.formatJson(command));
     } else {
       console.info(this.formatJson(command));
-    }
-  }
-
-  private static logEvent(event: IdentifiableEvent) {
-    if (process.env.NODE_ENV == "production") {
-      return;
-    }
-    const error = event.ByMyself?.result.Error;
-    const systemEvent =
-      event.ByMyself?.result?.SystemEvent ?? event.BySystem?.system_event;
-    if (error) {
-      console.error(this.formatJson(event));
-    }
-    if (systemEvent?.SessionEvent?.Fragment) {
-      console.debug(this.formatJson(event));
-    } else {
-      console.info(this.formatJson(event));
     }
   }
 

@@ -2,7 +2,7 @@ import * as React from "react";
 import {
   DocumentMaterial,
   Fragment,
-  SystemEvent,
+  SessionSnapshot,
   SystemFacade,
 } from "../SystemFacade";
 import { useSystemFacade } from "../contexts/SystemFacadeContext";
@@ -26,39 +26,44 @@ type InnerProps = Props & {
 
 type InnerState = {
   documentMaterial: DocumentMaterial | null;
+  sessionSnapshot: SessionSnapshot | null;
 };
 
 class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
   state: InnerState = {
     documentMaterial: null,
+    sessionSnapshot: null,
   };
   canvasRef = React.createRef<HTMLCanvasElement>();
   prevPos: { x: number; y: number } | null = null;
 
   componentDidMount() {
     const { systemFacade } = this.props;
-    systemFacade.materializeDocument().then((d) => {
-      this.setState({ documentMaterial: d });
+    Promise.all([
+      systemFacade.materializeDocument(),
+      systemFacade.materializeSession(),
+    ]).then(([d, s]) => {
+      this.setState({ documentMaterial: d, sessionSnapshot: s });
       systemFacade.addInvalidationListener(
         d.id,
         this.handleDocumentMaterialUpdate
       );
+      systemFacade.addSessionSnapshotChangeListener(
+        this.handleSessionSnapshotUpdate
+      );
     });
-
-    systemFacade.addEventListener("system", this.systemEventHandler);
   }
 
   componentWillUnmount() {
-    this.props.systemFacade.removeEventListener(
-      "system",
-      this.systemEventHandler
-    );
     if (this.state.documentMaterial) {
       this.props.systemFacade.removeInvalidationListener(
         this.state.documentMaterial.id,
         this.handleDocumentMaterialUpdate
       );
     }
+    this.props.systemFacade.removeSessionSnapshotChangeListener(
+      this.handleSessionSnapshotUpdate
+    );
   }
 
   handleDocumentMaterialUpdate = async () => {
@@ -67,19 +72,10 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
     });
   };
 
-  systemEventHandler = (e: any) => {
-    const data = e.data as SystemEvent;
-    if (data.SessionEvent?.Fragment) {
-      this.draw(data.SessionEvent.Fragment);
-    } else if (typeof data.SessionEvent?.SomeoneJoined !== "undefined") {
-      this.props.toastController.showToast(
-        "Someone joined: " + data.SessionEvent?.SomeoneJoined
-      );
-    } else if (typeof data.SessionEvent?.SomeoneLeft !== "undefined") {
-      this.props.toastController.showToast(
-        "Someone left: " + data.SessionEvent?.SomeoneLeft
-      );
-    }
+  handleSessionSnapshotUpdate = (sessionSnapshot: SessionSnapshot) => {
+    this.setState({
+      sessionSnapshot,
+    });
   };
 
   handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -145,6 +141,15 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
           onMouseUp={this.handleMouseUp}
         />
         <button onClick={this.handleLeave}>Leave</button>
+        <div>
+          {this.state.sessionSnapshot?.connections.map((connectionId) => {
+            return (
+              <div key={connectionId} style={{ border: "1px solid red" }}>
+                {connectionId}
+              </div>
+            );
+          })}
+        </div>
       </div>
     );
   }

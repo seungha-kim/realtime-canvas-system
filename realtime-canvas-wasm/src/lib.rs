@@ -1,7 +1,7 @@
 use realtime_canvas_system::{
     bincode, serde_json, ClientReplicaDocument, CommandId, CommandResult, DocumentCommand,
     IdentifiableCommand, IdentifiableEvent, Materialize, ObjectId, SessionCommand, SessionEvent,
-    SessionId, SystemCommand, SystemEvent, Transaction,
+    SessionId, SessionSnapshot, SystemCommand, SystemEvent, Transaction,
 };
 use std::collections::{HashSet, VecDeque};
 use std::num::Wrapping;
@@ -23,6 +23,8 @@ enum SystemState {
 
 struct SessionState {
     session_id: SessionId,
+    session_snapshot: SessionSnapshot,
+    session_snapshot_invalidated: bool,
     document: ClientReplicaDocument,
     invalidated_object_ids: HashSet<ObjectId>,
 }
@@ -65,7 +67,7 @@ impl CanvasSystem {
         serde_json::to_string(&event).unwrap()
     }
 
-    pub fn push_event(&mut self, bytes: &[u8]) {
+    pub fn handle_event_from_server(&mut self, bytes: &[u8]) {
         let event = bincode::deserialize::<IdentifiableEvent>(bytes).unwrap();
         log::trace!("New event from server: {:?}", event);
         let system_event = match event {
@@ -110,6 +112,13 @@ impl CanvasSystem {
                     // TODO: invalidate UI from system
                     log::info!("{} left", connection_id);
                 }
+                SessionEvent::SessionStateChanged(session_snapshot) => {
+                    if let SystemState::Joined(ref mut session_state) = self.state {
+                        session_state.session_snapshot = session_snapshot;
+                    } else {
+                        log::warn!("System isn't in a session");
+                    }
+                }
                 SessionEvent::Fragment(fragment) => {
                     log::trace!("Fragment: {:?}", fragment);
                 }
@@ -117,11 +126,13 @@ impl CanvasSystem {
             SystemEvent::JoinedSession {
                 session_id,
                 document_snapshot,
-                initial_state,
+                session_snapshot,
             } => {
                 self.state = SystemState::Joined(SessionState {
                     session_id,
                     document: ClientReplicaDocument::new(document_snapshot),
+                    session_snapshot,
+                    session_snapshot_invalidated: true,
                     invalidated_object_ids: HashSet::new(),
                 })
             }
@@ -204,6 +215,28 @@ impl CanvasSystem {
         } else {
             log::warn!("System isn't a session");
             "{}".into()
+        }
+    }
+
+    pub fn materialize_session(&self) -> String {
+        if let SystemState::Joined(ref session_state) = self.state {
+            return serde_json::to_string(&session_state.session_snapshot).unwrap();
+        } else {
+            log::warn!("System isn't a session");
+            "{}".into()
+        }
+    }
+
+    pub fn consume_latest_session_snapshot(&mut self) -> Option<String> {
+        if let SystemState::Joined(ref session_state) = self.state {
+            if session_state.session_snapshot_invalidated {
+                return Some(serde_json::to_string(&session_state.session_snapshot).unwrap());
+            } else {
+                None
+            }
+        } else {
+            log::warn!("System isn't a session");
+            None
         }
     }
 }

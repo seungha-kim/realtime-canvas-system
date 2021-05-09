@@ -3,7 +3,7 @@ use tokio::sync::mpsc::{channel, Sender};
 use realtime_canvas_system::{
     CommandResult, ConnectionId, DocumentReadable, FatalError, IdentifiableCommand,
     IdentifiableEvent, RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
-    SessionState, SystemCommand, SystemError, SystemEvent,
+    SessionSnapshot, SystemCommand, SystemError, SystemEvent,
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
@@ -100,29 +100,30 @@ impl Server {
                 let connections = session.connections.clone();
                 Ok(SystemEvent::JoinedSession {
                     session_id,
-                    initial_state: SessionState { connections },
+                    session_snapshot: SessionSnapshot { connections },
                     document_snapshot: session.document.snapshot(),
                 })
             }
             SystemCommand::JoinSession { session_id } => {
                 let result = self.server_state.join_session(from, session_id);
                 if result.is_ok() {
-                    self.broadcast_session_event(
-                        session_id,
-                        SessionEvent::SomeoneJoined(from.clone()),
-                        Some(from),
-                    )
-                    .await;
                     let session = self
                         .server_state
                         .sessions
                         .get(&session_id)
                         .expect("connection vector must exists");
-                    let connections = session.connections.clone();
+                    let session_snapshot = session.snapshot();
+                    let document_snapshot = session.document.snapshot();
+                    self.broadcast_session_event(
+                        session_id,
+                        SessionEvent::SessionStateChanged(session_snapshot.clone()),
+                        Some(from),
+                    )
+                    .await;
                     Ok(SystemEvent::JoinedSession {
                         session_id: session_id.clone(),
-                        initial_state: SessionState { connections },
-                        document_snapshot: session.document.snapshot(),
+                        session_snapshot,
+                        document_snapshot,
                     })
                 } else {
                     Err(SystemError::InvalidSessionId)
@@ -218,9 +219,14 @@ impl Server {
 
     async fn leave_session(&mut self, connection_id: &ConnectionId) -> Option<SessionId> {
         if let Some(session_id) = self.server_state.leave_session(connection_id) {
+            let session = self
+                .server_state
+                .sessions
+                .get(&session_id)
+                .expect("connection vector must exists");
             self.broadcast_session_event(
                 &session_id,
-                SessionEvent::SomeoneLeft(connection_id.clone()),
+                SessionEvent::SessionStateChanged(session.snapshot()),
                 Some(connection_id),
             )
             .await;

@@ -1,17 +1,17 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::traits::{DocumentReadable, PropReadable};
 
 use super::document_storage::DocumentStorage;
 use crate::message::*;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DocumentMaterial {
     id: uuid::Uuid,
     title: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize)]
 pub enum InvalidatedMaterial {
     Document,
 }
