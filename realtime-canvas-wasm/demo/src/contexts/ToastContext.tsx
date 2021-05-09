@@ -6,11 +6,11 @@ type ToastPayload = {
   content: React.ReactNode;
 };
 
-export type ToastControl = {
-  toast: (message: string, timeout?: number) => void;
+export type ToastController = {
+  showToast: (message: string, timeout?: number) => void;
 };
 
-const ToastContext = createContext<ToastControl>(null!);
+const ToastContext = createContext<ToastController>(null!);
 
 type Props = {
   children: React.ReactNode;
@@ -21,9 +21,9 @@ let idCount = 0;
 export function ToastProvider(props: Props) {
   const [toasts, setToasts] = useState<ToastPayload[]>([]);
 
-  const control: ToastControl = useMemo(
+  const controller: ToastController = useMemo(
     () => ({
-      toast: (message: string, timeout: number = 3000) => {
+      showToast: (message: string, timeout: number = 3000) => {
         const id = idCount++;
         setToasts((ms) => [
           ...ms,
@@ -41,7 +41,7 @@ export function ToastProvider(props: Props) {
   );
 
   return (
-    <ToastContext.Provider value={control}>
+    <ToastContext.Provider value={controller}>
       {props.children}
       <div>
         {toasts.map((t) => (

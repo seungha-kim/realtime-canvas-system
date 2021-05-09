@@ -6,7 +6,7 @@ import {
   SystemFacade,
 } from "../SystemFacade";
 import { useSystemFacade } from "../contexts/SystemFacadeContext";
-import { ToastControl, useToast } from "../contexts/ToastContext";
+import { ToastController, useToast } from "../contexts/ToastContext";
 
 function getLocalPos(e: any): { x: number; y: number } {
   const rect = e.target.getBoundingClientRect();
@@ -21,7 +21,7 @@ type Props = {
 
 type InnerProps = Props & {
   systemFacade: SystemFacade;
-  toastControl: ToastControl;
+  toastController: ToastController;
 };
 
 type InnerState = {
@@ -72,11 +72,11 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
     if (data.SessionEvent?.Fragment) {
       this.draw(data.SessionEvent.Fragment);
     } else if (typeof data.SessionEvent?.SomeoneJoined !== "undefined") {
-      this.props.toastControl.toast(
+      this.props.toastController.showToast(
         "Someone joined: " + data.SessionEvent?.SomeoneJoined
       );
     } else if (typeof data.SessionEvent?.SomeoneLeft !== "undefined") {
-      this.props.toastControl.toast(
+      this.props.toastController.showToast(
         "Someone left: " + data.SessionEvent?.SomeoneLeft
       );
     }
@@ -152,13 +152,13 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
 
 function SystemConsole(props: Props) {
   const system = useSystemFacade();
-  const toastControl = useToast();
+  const toastController = useToast();
 
   return (
     <SystemConsoleInner
       {...props}
       systemFacade={system}
-      toastControl={toastControl}
+      toastController={toastController}
     />
   );
 }
