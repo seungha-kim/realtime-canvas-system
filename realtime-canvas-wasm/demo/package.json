@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "node build.js",
-    "serve": "node serve.js"
+    "serve": "node serve.js",
+    "typecheck": "tsc --noEmit --skipLibCheck"
   },
   "keywords": [],
   "author": "",
