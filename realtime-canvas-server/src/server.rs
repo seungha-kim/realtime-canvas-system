@@ -96,7 +96,7 @@ impl Server {
                     .server_state
                     .sessions
                     .get(&session_id)
-                    .expect("connection vector must exist");
+                    .expect("session must exist");
                 let connections = session.connections.clone();
                 Ok(SystemEvent::JoinedSession {
                     session_id,
@@ -107,24 +107,24 @@ impl Server {
             SystemCommand::JoinSession { session_id } => {
                 let result = self.server_state.join_session(from, session_id);
                 if result.is_ok() {
-                    let session = self
-                        .server_state
-                        .sessions
-                        .get(&session_id)
-                        .expect("connection vector must exists");
-                    let session_snapshot = session.snapshot();
-                    let document_snapshot = session.document.snapshot();
-                    self.broadcast_session_event(
-                        session_id,
-                        SessionEvent::SessionStateChanged(session_snapshot.clone()),
-                        Some(from),
-                    )
-                    .await;
-                    Ok(SystemEvent::JoinedSession {
-                        session_id: session_id.clone(),
-                        session_snapshot,
-                        document_snapshot,
-                    })
+                    if let Some(session) = self.server_state.sessions.get(&session_id) {
+                        let session_snapshot = session.snapshot();
+                        let document_snapshot = session.document.snapshot();
+                        self.broadcast_session_event(
+                            session_id,
+                            SessionEvent::SessionStateChanged(session_snapshot.clone()),
+                            Some(from),
+                        )
+                        .await;
+                        Ok(SystemEvent::JoinedSession {
+                            session_id: session_id.clone(),
+                            session_snapshot,
+                            document_snapshot,
+                        })
+                    } else {
+                        log::warn!("Tried to join non-existing session.");
+                        Err(SystemError::InvalidSessionId)
+                    }
                 } else {
                     Err(SystemError::InvalidSessionId)
                 }
@@ -212,26 +212,30 @@ impl Server {
                     self.connections.send(connection_id, event).await;
                 }
             }
-        } else {
-            log::warn!("session has no connection. server state has been corrupted");
         }
     }
 
     async fn leave_session(&mut self, connection_id: &ConnectionId) -> Option<SessionId> {
-        if let Some(session_id) = self.server_state.leave_session(connection_id) {
-            let session = self
+        if let Some(ConnectionState::Joined(session_id)) =
+            self.server_state.connection_states.get(connection_id)
+        {
+            let session_id = session_id.clone();
+            let session_snapshot = self
                 .server_state
                 .sessions
                 .get(&session_id)
-                .expect("connection vector must exists");
+                .expect("session must exist.")
+                .snapshot();
+            self.server_state.leave_session(connection_id);
             self.broadcast_session_event(
                 &session_id,
-                SessionEvent::SessionStateChanged(session.snapshot()),
+                SessionEvent::SessionStateChanged(session_snapshot),
                 Some(connection_id),
             )
             .await;
             Some(session_id)
         } else {
+            log::warn!("connection is not in joined state");
             None
         }
     }
