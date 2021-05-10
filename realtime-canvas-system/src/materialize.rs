@@ -23,7 +23,7 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
         let readable = self.readable();
         let document_id = readable.document_id();
         let title = readable
-            .get_string_prop(&PropKey(document_id.clone(), "title".into()))
+            .get_string_prop(&PropKey(document_id.clone(), PropKind::Title))
             .unwrap_or("Untitled")
             .into();
 

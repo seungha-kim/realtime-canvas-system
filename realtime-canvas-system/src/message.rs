@@ -119,8 +119,16 @@ pub struct SessionSnapshot {
     pub connections: Vec<ConnectionId>,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
-pub struct PropKey(pub ObjectId, pub String);
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub enum PropKind {
+    Title,
+    PosX,
+    PosY,
+    Radius,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct PropKey(pub ObjectId, pub PropKind);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ObjectType {

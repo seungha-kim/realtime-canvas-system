@@ -64,24 +64,24 @@ mod tests {
         manager.push(Transaction {
             id: uuid::Uuid::new_v4(),
             items: vec![DocumentMutation::UpdateObject(
-                PropKey(object_id, "hello".to_string()),
+                PropKey(object_id, PropKind::Title),
                 PropValue::String("world".into()),
             )],
         });
 
         assert_eq!(
-            manager.get_string_prop(&PropKey(object_id, "hello".to_string())),
+            manager.get_string_prop(&PropKey(object_id, PropKind::Title)),
             Some("world")
         );
 
         assert_eq!(
-            manager.get_string_prop(&PropKey(object_id, "asdf".into())),
+            manager.get_string_prop(&PropKey(object_id, PropKind::Radius)),
             None
         );
 
         let other_id = uuid::Uuid::new_v4();
         assert_eq!(
-            manager.get_string_prop(&PropKey(other_id, "hello".into())),
+            manager.get_string_prop(&PropKey(other_id, PropKind::Title)),
             None
         );
     }
@@ -97,7 +97,7 @@ mod tests {
         manager.push(Transaction {
             id: tx_id,
             items: vec![DocumentMutation::UpdateObject(
-                PropKey(object_id, "hello".to_string()),
+                PropKey(object_id, PropKind::Title),
                 PropValue::String("world".into()),
             )],
         });
@@ -106,7 +106,7 @@ mod tests {
         manager.push(Transaction {
             id: tx_id,
             items: vec![DocumentMutation::UpdateObject(
-                PropKey(object_id, "hello".to_string()),
+                PropKey(object_id, PropKind::Title),
                 PropValue::String("world".into()),
             )],
         });

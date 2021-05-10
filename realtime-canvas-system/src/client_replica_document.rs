@@ -79,7 +79,7 @@ impl ClientReplicaDocument {
         match command {
             DocumentCommand::UpdateDocumentTitle { title } => {
                 Transaction::new(vec![DocumentMutation::UpdateObject(
-                    PropKey(self.storage.document_id(), "title".into()),
+                    PropKey(self.storage.document_id(), PropKind::Title),
                     PropValue::String(title),
                 )])
             }
@@ -88,15 +88,15 @@ impl ClientReplicaDocument {
                 Transaction::new(vec![
                     DocumentMutation::CreateObject(id, ObjectType::Document),
                     DocumentMutation::UpdateObject(
-                        PropKey(id, "posX".into()),
+                        PropKey(id, PropKind::PosX),
                         PropValue::Float(pos.x),
                     ),
                     DocumentMutation::UpdateObject(
-                        PropKey(id, "posY".into()),
+                        PropKey(id, PropKind::PosY),
                         PropValue::Float(pos.y),
                     ),
                     DocumentMutation::UpdateObject(
-                        PropKey(id, "radius".into()),
+                        PropKey(id, PropKind::Radius),
                         PropValue::Float(radius),
                     ),
                 ])
