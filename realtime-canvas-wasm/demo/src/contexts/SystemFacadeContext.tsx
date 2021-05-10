@@ -1,8 +1,7 @@
 import * as React from "react";
 import { SystemFacade } from "../SystemFacade";
-import { createContext, useContext, useState } from "react";
 
-const SystemFacadeContext = createContext<SystemFacade>(null!);
+const SystemFacadeContext = React.createContext<SystemFacade | null>(null!);
 
 type Props = {
   children: React.ReactNode;
@@ -10,8 +9,15 @@ type Props = {
 
 export function SystemFacadeProvider(props: Props) {
   const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = "localhost:8080"
-  const [facade] = useState(() => new SystemFacade(`${protocol}//${host}/ws/`));
+  const host = "localhost:8080";
+  const [facade, setFacade] = React.useState<SystemFacade | null>(null);
+  React.useEffect(() => {
+    (async () => {
+      const facade = await SystemFacade.create(`${protocol}//${host}/ws/`);
+      setFacade(facade);
+    })();
+  }, []);
+
   return (
     <SystemFacadeContext.Provider value={facade}>
       {props.children}
@@ -20,5 +26,5 @@ export function SystemFacadeProvider(props: Props) {
 }
 
 export function useSystemFacade() {
-  return useContext(SystemFacadeContext);
+  return React.useContext(SystemFacadeContext);
 }

@@ -39,19 +39,16 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
 
   componentDidMount() {
     const { systemFacade } = this.props;
-    Promise.all([
-      systemFacade.materializeDocument(),
-      systemFacade.materializeSession(),
-    ]).then(([d, s]) => {
-      this.setState({ documentMaterial: d, sessionSnapshot: s });
-      systemFacade.addInvalidationListener(
-        d.id,
-        this.handleDocumentMaterialUpdate
-      );
-      systemFacade.addSessionSnapshotChangeListener(
-        this.handleSessionSnapshotUpdate
-      );
-    });
+    const documentMaterial = systemFacade.materializeDocument();
+    const sessionSnapshot = systemFacade.materializeSession();
+    this.setState({ documentMaterial, sessionSnapshot });
+    systemFacade.addInvalidationListener(
+      documentMaterial.id,
+      this.handleDocumentMaterialUpdate
+    );
+    systemFacade.addSessionSnapshotChangeListener(
+      this.handleSessionSnapshotUpdate
+    );
   }
 
   componentWillUnmount() {
@@ -159,13 +156,17 @@ function SystemConsole(props: Props) {
   const system = useSystemFacade();
   const toastController = useToast();
 
-  return (
-    <SystemConsoleInner
-      {...props}
-      systemFacade={system}
-      toastController={toastController}
-    />
-  );
+  if (system) {
+    return (
+      <SystemConsoleInner
+        {...props}
+        systemFacade={system}
+        toastController={toastController}
+      />
+    );
+  } else {
+    return null;
+  }
 }
 
 export default SystemConsole;

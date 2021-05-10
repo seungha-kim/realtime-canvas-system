@@ -64,7 +64,7 @@ export type SessionSnapshot = {
 };
 
 export class SystemFacade {
-  private system: Promise<CanvasSystem>;
+  private system: CanvasSystem;
   private ws: WebSocket;
   private commandResolverRegistry: Map<CommandId, CommandResolver> = new Map();
   private invalidationListeners: Map<
@@ -73,12 +73,16 @@ export class SystemFacade {
   > = new Map();
   private sessionSnapshotChangeListeners: Set<SessionSnapshotListener> = new Set();
 
-  constructor(url: string) {
-    this.system = init(mod).then(() => {
-      const system = new CanvasSystem();
-      (window as any).system = system;
-      return system;
-    });
+  static async create(url: string): Promise<SystemFacade> {
+    await init(mod);
+    const system = new CanvasSystem();
+    (window as any).system = system;
+    return new SystemFacade(url, system);
+  }
+
+  private constructor(url: string, system: CanvasSystem) {
+    this.system = system;
+
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
     this.ws = ws;
@@ -87,37 +91,37 @@ export class SystemFacade {
 
   private setupWebSocketEventHandlers() {
     // this.ws.onopen = this.ws.onmessage = this.ws.onerror = this.ws.onclose = console.log
-    this.ws.addEventListener("message", async (e) => {
+    this.ws.addEventListener("message", (e) => {
       const buf = new Uint8Array(e.data);
-      const json = (await this.system).convert_event_to_json(buf);
+      const json = this.system.convert_event_to_json(buf);
       const parsed: IdentifiableEvent = JSON.parse(json);
       this.handleIdentifiableEvent(parsed);
 
-      (await this.system).handle_event_from_server(buf);
-      await this.notifyObjectInvalidation();
-      await this.notifySessionSnapshotInvalidation();
+      this.system.handle_event_from_server(buf);
+      this.notifyObjectInvalidation();
+      this.notifySessionSnapshotInvalidation();
     });
   }
 
-  async createSession(): Promise<SystemEvent> {
+  createSession(): Promise<SystemEvent> {
     return this.sendCommand({
       CreateSession: null,
     });
   }
 
-  async joinSession(sessionId: number): Promise<SystemEvent> {
+  joinSession(sessionId: number): Promise<SystemEvent> {
     return this.sendCommand({
       JoinSession: { session_id: sessionId },
     });
   }
 
-  async leaveSession(): Promise<SystemEvent> {
+  leaveSession(): Promise<SystemEvent> {
     return this.sendCommand({
       LeaveSession: null,
     });
   }
 
-  async sendFragment(fragment: Fragment): Promise<void> {
+  sendFragment(fragment: Fragment) {
     return this.sendCommand(
       {
         SessionCommand: { Fragment: fragment },
@@ -126,21 +130,19 @@ export class SystemFacade {
     );
   }
 
-  async materializeDocument(): Promise<DocumentMaterial> {
-    return JSON.parse((await this.system).materialize_document());
+  materializeDocument(): DocumentMaterial {
+    return JSON.parse(this.system.materialize_document());
   }
 
-  async materializeSession(): Promise<SessionSnapshot> {
-    return JSON.parse((await this.system).materialize_session());
+  materializeSession(): SessionSnapshot {
+    return JSON.parse(this.system.materialize_session());
   }
 
-  async pushDocumentCommand(command: DocumentCommand) {
-    (await this.system).push_document_command(JSON.stringify(command));
-    await this.notifyObjectInvalidation();
+  pushDocumentCommand(command: DocumentCommand) {
+    this.system.push_document_command(JSON.stringify(command));
+    this.notifyObjectInvalidation();
     while (true) {
-      const pendingCommand = (
-        await this.system
-      ).consume_pending_identifiable_command();
+      const pendingCommand = this.system.consume_pending_identifiable_command();
       if (pendingCommand) {
         this.ws.send(pendingCommand);
       } else {
@@ -167,8 +169,8 @@ export class SystemFacade {
     this.sessionSnapshotChangeListeners.delete(listener);
   }
 
-  private async notifyObjectInvalidation() {
-    const invalidatedObjectIds = await this.consumeInvalidatedObjectIds();
+  private notifyObjectInvalidation() {
+    const invalidatedObjectIds = this.consumeInvalidatedObjectIds();
     for (const objectId of invalidatedObjectIds) {
       const listeners = this.invalidationListeners.get(objectId);
       if (listeners) {
@@ -179,8 +181,8 @@ export class SystemFacade {
     }
   }
 
-  private async notifySessionSnapshotInvalidation() {
-    const snapshotJson = (await this.system).consume_latest_session_snapshot();
+  private notifySessionSnapshotInvalidation() {
+    const snapshotJson = this.system.consume_latest_session_snapshot();
     if (snapshotJson) {
       const parsed = JSON.parse(snapshotJson);
       for (const listener of this.sessionSnapshotChangeListeners) {
@@ -189,22 +191,20 @@ export class SystemFacade {
     }
   }
 
-  private async sendCommand(command: SystemCommand): Promise<SystemEvent>;
-  private async sendCommand(
+  private sendCommand(command: SystemCommand): Promise<SystemEvent>;
+  private sendCommand(
     command: SystemCommand,
     registerCommandResolver: false
-  ): Promise<void>;
-  private async sendCommand(
+  ): void;
+  private sendCommand(
     command: SystemCommand,
     registerCommandResolver = true
-  ): Promise<SystemEvent | void> {
+  ): Promise<SystemEvent> | void {
     SystemFacade.logCommand(command);
-    const commandBuf = (await this.system).create_command(
-      JSON.stringify(command)
-    );
+    const commandBuf = this.system.create_command(JSON.stringify(command));
     this.ws.send(commandBuf);
     if (registerCommandResolver) {
-      const commandId = (await this.system).last_command_id();
+      const commandId = this.system.last_command_id();
       return new Promise((resolve, reject) => {
         this.registerCommandResolver(commandId, { resolve, reject });
       });
@@ -252,7 +252,7 @@ export class SystemFacade {
     return JSON.stringify(obj, null, 2);
   }
 
-  private async consumeInvalidatedObjectIds(): Promise<string[]> {
-    return JSON.parse((await this.system).consume_invalidated_object_ids());
+  private consumeInvalidatedObjectIds(): string[] {
+    return JSON.parse(this.system.consume_invalidated_object_ids());
   }
 }
