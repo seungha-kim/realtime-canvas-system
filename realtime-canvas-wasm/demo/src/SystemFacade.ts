@@ -131,11 +131,11 @@ export class SystemFacade {
   }
 
   materializeDocument(): DocumentMaterial {
-    return JSON.parse(this.system.materialize_document());
+    return JSON.parse(this.system.materialize_document()!);
   }
 
   materializeSession(): SessionSnapshot {
-    return JSON.parse(this.system.materialize_session());
+    return JSON.parse(this.system.materialize_session()!);
   }
 
   pushDocumentCommand(command: DocumentCommand) {
