@@ -95,7 +95,7 @@ pub enum PropValue {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DocumentMutation {
-    CreateObject(ObjectId, ObjectType),
+    CreateObject(ObjectId, ObjectKind),
     UpdateObject(PropKey, PropValue),
     DeleteObject(ObjectId),
 }
@@ -130,7 +130,7 @@ pub enum PropKind {
 pub struct PropKey(pub ObjectId, pub PropKind);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ObjectType {
+pub enum ObjectKind {
     Document,
     Circle,
 }

@@ -87,7 +87,7 @@ impl ClientReplicaDocument {
             DocumentCommand::CreateCircle { pos, radius } => {
                 let id = uuid::Uuid::new_v4();
                 Transaction::new(vec![
-                    DocumentMutation::CreateObject(id, ObjectType::Document),
+                    DocumentMutation::CreateObject(id, ObjectKind::Document),
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::PosX),
                         PropValue::Float(pos.x),

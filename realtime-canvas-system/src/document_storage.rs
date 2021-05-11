@@ -16,7 +16,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentStorage {
     document_id: uuid::Uuid,
-    objects: HashMap<ObjectId, ObjectType>,
+    objects: HashMap<ObjectId, ObjectKind>,
 
     string_props: HashMap<PropKey, String>,
     float_props: HashMap<PropKey, f32>,
@@ -47,8 +47,8 @@ impl DocumentStorage {
 
     fn mutate(&mut self, mutation: &DocumentMutation) -> Result<(), ()> {
         match &mutation {
-            DocumentMutation::CreateObject(object_id, object_type) => {
-                self.objects.insert(object_id.clone(), object_type.clone());
+            DocumentMutation::CreateObject(object_id, object_kind) => {
+                self.objects.insert(object_id.clone(), object_kind.clone());
                 Ok(())
             }
             DocumentMutation::UpdateObject(prop_key, prop_value) => {
