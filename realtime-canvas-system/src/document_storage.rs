@@ -39,7 +39,8 @@ impl DocumentStorage {
 
     pub fn process(&mut self, tx: Transaction) -> Result<(), ()> {
         for m in &tx.items {
-            self.mutate(m);
+            // TODO: Err
+            self.mutate(m).unwrap();
         }
         Ok(())
     }

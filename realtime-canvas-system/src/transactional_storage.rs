@@ -3,9 +3,6 @@ use crate::traits::{DocumentReadable, PropReadable};
 
 use super::document_storage::*;
 use super::transaction_manager::*;
-use crate::document_command::DocumentCommand;
-use crate::materialize::InvalidatedMaterial;
-use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 pub struct TransactionalStorage {
@@ -30,10 +27,6 @@ impl TransactionalStorage {
 }
 
 impl TransactionalStorage {
-    fn tx_manager(&mut self) -> &mut TransactionManager {
-        &mut self.tx_manager
-    }
-
     pub fn begin(&mut self, tx: Transaction) -> Result<(), ()> {
         self.tx_manager.push(tx.clone());
         // TODO: validation
@@ -43,7 +36,8 @@ impl TransactionalStorage {
     pub fn finish(&mut self, tx_id: &TransactionId, commit: bool) -> Result<Transaction, ()> {
         if let Some(tx) = self.tx_manager.remove(tx_id) {
             if commit {
-                self.doc_storage.process(tx.clone());
+                // TODO: Err
+                self.doc_storage.process(tx.clone()).unwrap();
             }
             Ok(tx)
         } else {

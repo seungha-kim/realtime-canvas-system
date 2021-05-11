@@ -1,7 +1,5 @@
 use super::message::*;
 use super::traits::PropReadable;
-use std::collections::HashMap;
-use uuid::Uuid;
 
 pub struct TransactionManager {
     txs: Vec<Transaction>,

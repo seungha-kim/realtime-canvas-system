@@ -1,11 +1,11 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 
 use crate::materialize::Materialize;
+use crate::traits::DocumentReadable;
 use crate::transactional_storage::TransactionalStorage;
+use crate::{DocumentCommand, DocumentSnapshot};
 
 use super::message::*;
-use crate::traits::{DocumentReadable, PropReadable};
-use crate::{DocumentCommand, DocumentSnapshot, DocumentStorage};
 
 pub struct ClientReplicaDocument {
     storage: TransactionalStorage,
@@ -33,7 +33,7 @@ impl ClientReplicaDocument {
         log::debug!("Handle document command: {:?}", command);
         let tx = self.convert_command_to_tx(command);
         // TODO: Err
-        self.storage.begin(tx.clone());
+        self.storage.begin(tx.clone()).unwrap();
         Ok(TransactionResult {
             invalidated_object_ids: self.invalidated_object_ids(&tx),
             transaction: tx,
@@ -43,8 +43,9 @@ impl ClientReplicaDocument {
     pub fn handle_transaction(&mut self, tx: Transaction) -> Result<TransactionResult, ()> {
         log::info!("Handle others transaction: {:?}", tx);
         // TODO: Err
-        self.storage.begin(tx.clone());
-        self.storage.finish(&tx.id, true);
+        self.storage.begin(tx.clone()).unwrap();
+        // TODO: Err
+        self.storage.finish(&tx.id, true).unwrap();
         Ok(TransactionResult {
             invalidated_object_ids: self.invalidated_object_ids(&tx),
             transaction: tx,

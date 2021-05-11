@@ -1,11 +1,9 @@
-use std::collections::{HashSet, VecDeque};
-
 use crate::materialize::Materialize;
 use crate::transactional_storage::TransactionalStorage;
 
 use super::message::*;
-use crate::traits::{DocumentReadable, PropReadable};
-use crate::{DocumentCommand, DocumentSnapshot, DocumentStorage};
+use crate::document_storage::DocumentSnapshot;
+use crate::traits::DocumentReadable;
 use uuid::Uuid;
 
 pub struct ServerLeaderDocument {
@@ -27,9 +25,10 @@ impl ServerLeaderDocument {
 
     pub fn process_transaction(&mut self, tx: Transaction) -> Result<Transaction, ()> {
         let tx_id = tx.id;
-        self.storage.begin(tx.clone());
+        // TODO: Err
+        self.storage.begin(tx.clone()).unwrap();
         // TODO: validation
-        self.storage.finish(&tx_id, true);
+        self.storage.finish(&tx_id, true).unwrap();
         Ok(tx)
     }
 }

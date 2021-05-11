@@ -188,7 +188,6 @@ impl Server {
                         ))
                     }
                 }
-                _ => unimplemented!(),
             }
         } else {
             Err(SessionError::FatalError(FatalError {

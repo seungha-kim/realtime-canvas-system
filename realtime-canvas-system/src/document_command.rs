@@ -1,5 +1,3 @@
-use crate::message::*;
-use crate::ObjectType::Document;
 use euclid::default::Point2D;
 use serde::{Deserialize, Serialize};
 

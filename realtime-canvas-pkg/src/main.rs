@@ -1,5 +1,4 @@
 use realtime_canvas_server::actix_web::{self, web, App, HttpRequest, HttpResponse, HttpServer};
-
 use realtime_canvas_server::connection::ws_index;
 use realtime_canvas_server::server::spawn_server;
 

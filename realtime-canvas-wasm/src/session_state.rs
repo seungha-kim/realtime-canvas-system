@@ -6,7 +6,6 @@ use realtime_canvas_system::{
 };
 
 pub struct SessionState {
-    session_id: SessionId,
     session_snapshot: SessionSnapshot,
     session_snapshot_invalidated: bool,
     document: ClientReplicaDocument,
@@ -15,12 +14,11 @@ pub struct SessionState {
 
 impl SessionState {
     pub fn new(
-        session_id: SessionId,
+        _session_id: SessionId,
         document_snapshot: DocumentSnapshot,
         session_snapshot: SessionSnapshot,
     ) -> Self {
         Self {
-            session_id,
             document: ClientReplicaDocument::new(document_snapshot),
             session_snapshot,
             session_snapshot_invalidated: true,
@@ -30,10 +28,10 @@ impl SessionState {
     pub fn handle_session_event(&mut self, event: SessionEvent) {
         match event {
             SessionEvent::TransactionAck(tx_id) => {
-                self.document.handle_ack(&tx_id);
+                self.document.handle_ack(&tx_id).unwrap();
             }
             SessionEvent::TransactionNack(tx_id, _reason) => {
-                self.document.handle_nack(&tx_id);
+                self.document.handle_nack(&tx_id).unwrap();
             }
             SessionEvent::OthersTransaction(tx) => {
                 if let Ok(result) = self.document.handle_transaction(tx) {

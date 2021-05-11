@@ -1,16 +1,16 @@
-mod session_state;
-mod utils;
+use std::collections::VecDeque;
+use std::num::Wrapping;
+
+use wasm_bindgen::prelude::*;
 
 use realtime_canvas_system::{
-    bincode, serde_json, ClientReplicaDocument, CommandId, CommandResult, DocumentCommand,
-    IdentifiableCommand, IdentifiableEvent, Materialize, ObjectId, SessionCommand, SessionEvent,
-    SessionId, SessionSnapshot, SystemCommand, SystemEvent, Transaction,
+    bincode, serde_json, CommandId, CommandResult, IdentifiableCommand, IdentifiableEvent,
+    SessionCommand, SystemCommand, SystemEvent,
 };
 use session_state::SessionState;
-use std::collections::{HashSet, VecDeque};
-use std::num::Wrapping;
-use wasm_bindgen::__rt::std::alloc::System;
-use wasm_bindgen::prelude::*;
+
+mod session_state;
+mod utils;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -30,7 +30,7 @@ impl CanvasSystem {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         utils::set_panic_hook();
-        console_log::init_with_level(log::Level::Trace);
+        console_log::init_with_level(log::Level::Trace).unwrap();
 
         CanvasSystem {
             command_id_source: Wrapping(0),
@@ -60,7 +60,7 @@ impl CanvasSystem {
         let event = bincode::deserialize::<IdentifiableEvent>(bytes).unwrap();
         log::trace!("New event from server: {:?}", event);
         let system_event = match event {
-            IdentifiableEvent::ByMyself { command_id, result } => match result {
+            IdentifiableEvent::ByMyself { result, .. } => match result {
                 CommandResult::SystemEvent(system_event) => system_event,
                 CommandResult::Error(system_error) => panic!("SystemError: {:?}", system_error),
             },

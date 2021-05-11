@@ -1,5 +1,4 @@
 use crate::document_storage::DocumentSnapshot;
-use crate::message::DocumentMutation;
 use crate::PropKey;
 
 pub trait PropReadable {
