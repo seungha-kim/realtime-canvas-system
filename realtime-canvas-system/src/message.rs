@@ -123,7 +123,8 @@ pub enum PropKind {
     Name,
     PosX,
     PosY,
-    Radius,
+    RadiusH,
+    RadiusV,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -132,7 +133,7 @@ pub struct PropKey(pub ObjectId, pub PropKind);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ObjectKind {
     Document,
-    Circle,
+    Oval,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
