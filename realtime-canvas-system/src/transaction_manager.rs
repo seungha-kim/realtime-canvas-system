@@ -62,13 +62,13 @@ mod tests {
         manager.push(Transaction {
             id: uuid::Uuid::new_v4(),
             items: vec![DocumentMutation::UpdateObject(
-                PropKey(object_id, PropKind::Title),
+                PropKey(object_id, PropKind::Name),
                 PropValue::String("world".into()),
             )],
         });
 
         assert_eq!(
-            manager.get_string_prop(&PropKey(object_id, PropKind::Title)),
+            manager.get_string_prop(&PropKey(object_id, PropKind::Name)),
             Some("world")
         );
 
@@ -79,7 +79,7 @@ mod tests {
 
         let other_id = uuid::Uuid::new_v4();
         assert_eq!(
-            manager.get_string_prop(&PropKey(other_id, PropKind::Title)),
+            manager.get_string_prop(&PropKey(other_id, PropKind::Name)),
             None
         );
     }
@@ -95,7 +95,7 @@ mod tests {
         manager.push(Transaction {
             id: tx_id,
             items: vec![DocumentMutation::UpdateObject(
-                PropKey(object_id, PropKind::Title),
+                PropKey(object_id, PropKind::Name),
                 PropValue::String("world".into()),
             )],
         });
@@ -104,7 +104,7 @@ mod tests {
         manager.push(Transaction {
             id: tx_id,
             items: vec![DocumentMutation::UpdateObject(
-                PropKey(object_id, PropKind::Title),
+                PropKey(object_id, PropKind::Name),
                 PropValue::String("world".into()),
             )],
         });

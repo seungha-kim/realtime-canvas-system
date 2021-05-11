@@ -120,7 +120,7 @@ pub struct SessionSnapshot {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PropKind {
-    Title,
+    Name,
     PosX,
     PosY,
     Radius,
@@ -133,14 +133,6 @@ pub struct PropKey(pub ObjectId, pub PropKind);
 pub enum ObjectKind {
     Document,
     Circle,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PropName {
-    Title,
-    PosX,
-    PosY,
-    Radius,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

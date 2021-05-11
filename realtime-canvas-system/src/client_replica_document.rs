@@ -78,10 +78,10 @@ impl ClientReplicaDocument {
 
     fn convert_command_to_tx(&self, command: DocumentCommand) -> Transaction {
         match command {
-            DocumentCommand::UpdateDocumentTitle { title } => {
+            DocumentCommand::UpdateDocumentName { name } => {
                 Transaction::new(vec![DocumentMutation::UpdateObject(
-                    PropKey(self.storage.document_id(), PropKind::Title),
-                    PropValue::String(title),
+                    PropKey(self.storage.document_id(), PropKind::Name),
+                    PropValue::String(name),
                 )])
             }
             DocumentCommand::CreateCircle { pos, radius } => {

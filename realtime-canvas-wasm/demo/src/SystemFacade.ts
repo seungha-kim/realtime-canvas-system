@@ -50,11 +50,11 @@ type CommandResolver = {
 
 export type DocumentMaterial = {
   id: string;
-  title: string;
+  name: string;
 };
 
 export type DocumentCommand = {
-  UpdateDocumentTitle?: { title: string };
+  UpdateDocumentName?: { name: string };
 };
 
 type InvalidationListener = (objectId: string) => void;

@@ -97,10 +97,10 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
   };
 
   handleTitleClick = () => {
-    const title = prompt("New title?");
-    if (title) {
+    const name = prompt("New title?");
+    if (name) {
       this.props.systemFacade.pushDocumentCommand({
-        UpdateDocumentTitle: { title },
+        UpdateDocumentName: { name },
       });
     }
   };
@@ -127,7 +127,7 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
     const { documentMaterial } = this.state;
     return (
       <div>
-        <h1 onClick={this.handleTitleClick}>{documentMaterial?.title}</h1>
+        <h1 onClick={this.handleTitleClick}>{documentMaterial?.name}</h1>
         <canvas
           ref={this.canvasRef}
           width={100}
