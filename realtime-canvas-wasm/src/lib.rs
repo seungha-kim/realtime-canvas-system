@@ -1,14 +1,16 @@
+mod session_state;
+mod utils;
+
 use realtime_canvas_system::{
     bincode, serde_json, ClientReplicaDocument, CommandId, CommandResult, DocumentCommand,
     IdentifiableCommand, IdentifiableEvent, Materialize, ObjectId, SessionCommand, SessionEvent,
     SessionId, SessionSnapshot, SystemCommand, SystemEvent, Transaction,
 };
+use session_state::SessionState;
 use std::collections::{HashSet, VecDeque};
 use std::num::Wrapping;
 use wasm_bindgen::__rt::std::alloc::System;
 use wasm_bindgen::prelude::*;
-
-mod utils;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -16,24 +18,11 @@ mod utils;
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-enum SystemState {
-    Lobby,
-    Joined(SessionState),
-}
-
-struct SessionState {
-    session_id: SessionId,
-    session_snapshot: SessionSnapshot,
-    session_snapshot_invalidated: bool,
-    document: ClientReplicaDocument,
-    invalidated_object_ids: HashSet<ObjectId>,
-}
-
 #[wasm_bindgen]
 pub struct CanvasSystem {
     command_id_source: Wrapping<CommandId>,
     pending_identifiable_commands: VecDeque<IdentifiableCommand>,
-    state: SystemState,
+    session: Option<SessionState>,
 }
 
 #[wasm_bindgen]
@@ -46,7 +35,7 @@ impl CanvasSystem {
         CanvasSystem {
             command_id_source: Wrapping(0),
             pending_identifiable_commands: VecDeque::new(),
-            state: SystemState::Lobby,
+            session: None,
         }
     }
 
@@ -78,63 +67,21 @@ impl CanvasSystem {
             IdentifiableEvent::BySystem { system_event } => system_event,
         };
         match system_event {
-            SystemEvent::SessionEvent(session_event) => match session_event {
-                SessionEvent::TransactionAck(tx_id) => {
-                    if let SystemState::Joined(ref mut session_state) = self.state {
-                        session_state.document.handle_ack(&tx_id);
-                    } else {
-                        log::warn!("System isn't a session");
-                    }
-                }
-                SessionEvent::TransactionNack(tx_id, _reason) => {
-                    if let SystemState::Joined(ref mut session_state) = self.state {
-                        session_state.document.handle_nack(&tx_id);
-                    } else {
-                        log::warn!("System isn't a session");
-                    }
-                }
-                SessionEvent::OthersTransaction(tx) => {
-                    if let SystemState::Joined(ref mut session_state) = self.state {
-                        if let Ok(result) = session_state.document.handle_transaction(tx) {
-                            for id in result.invalidated_object_ids {
-                                session_state.invalidated_object_ids.insert(id);
-                            }
-                        }
-                    } else {
-                        log::warn!("System isn't in a session");
-                    }
-                }
-                SessionEvent::SomeoneJoined(connection_id) => {
-                    // TODO: invalidate UI from system
-                    log::info!("{} joined", connection_id);
-                }
-                SessionEvent::SomeoneLeft(connection_id) => {
-                    // TODO: invalidate UI from system
-                    log::info!("{} left", connection_id);
-                }
-                SessionEvent::SessionStateChanged(session_snapshot) => {
-                    if let SystemState::Joined(ref mut session_state) = self.state {
-                        session_state.session_snapshot = session_snapshot;
-                    } else {
-                        log::warn!("System isn't in a session");
-                    }
-                }
-                SessionEvent::Fragment(fragment) => {
-                    log::trace!("Fragment: {:?}", fragment);
-                }
-            },
+            SystemEvent::SessionEvent(session_event) => {
+                self.session
+                    .as_mut()
+                    .map(|s| s.handle_session_event(session_event));
+            }
             SystemEvent::JoinedSession {
                 session_id,
                 document_snapshot,
                 session_snapshot,
             } => {
-                self.state = SystemState::Joined(SessionState {
+                self.session = Some(SessionState::new(
                     session_id,
-                    document: ClientReplicaDocument::new(document_snapshot),
+                    document_snapshot,
                     session_snapshot,
-                    session_snapshot_invalidated: true,
-                    invalidated_object_ids: HashSet::new(),
-                })
+                ));
             }
             system_event => {
                 log::warn!("Unhandled SystemEvent: {:?}", system_event);
@@ -155,46 +102,26 @@ impl CanvasSystem {
     }
 
     pub fn push_document_command(&mut self, json: String) {
-        if let SystemState::Joined(ref mut session_state) = self.state {
-            let command = serde_json::from_str::<DocumentCommand>(&json).unwrap();
-
-            if session_state.invalidated_object_ids.len() > 0 {
-                log::warn!("invalidate_object_ids must be consumed for each command");
-            }
-            // TODO: Err
-            if let Ok(result) = session_state.document.handle_command(command) {
-                for invalidated_object_id in result.invalidated_object_ids {
-                    session_state
-                        .invalidated_object_ids
-                        .insert(invalidated_object_id);
-                }
+        self.session
+            .as_mut()
+            .and_then(|s| s.push_document_command(json).ok())
+            .map(|tx| {
                 let command_id = self.new_command_id();
                 self.pending_identifiable_commands
                     .push_back(IdentifiableCommand {
                         command_id,
                         system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(
-                            result.transaction,
+                            tx,
                         )),
                     });
-            }
-        } else {
-            log::warn!("System isn't in a session");
-        }
+            });
     }
 
     pub fn consume_invalidated_object_ids(&mut self) -> String {
-        if let SystemState::Joined(ref mut session_state) = self.state {
-            log::trace!(
-                "Objects being invalidated: {:?}",
-                session_state.invalidated_object_ids
-            );
-            let result = serde_json::to_string(&session_state.invalidated_object_ids).unwrap();
-            session_state.invalidated_object_ids.clear();
-            result
-        } else {
-            log::warn!("System isn't in a session");
-            "[]".into()
-        }
+        self.session
+            .as_mut()
+            .map(|s| s.consume_invalidated_object_ids())
+            .unwrap_or("[]".into())
     }
 
     pub fn consume_pending_identifiable_command(&mut self) -> Option<Box<[u8]>> {
@@ -208,35 +135,17 @@ impl CanvasSystem {
             })
     }
 
-    pub fn materialize_document(&self) -> String {
-        if let SystemState::Joined(ref session_state) = self.state {
-            let document = session_state.document.materialize_document();
-            return serde_json::to_string(&document).unwrap();
-        } else {
-            log::warn!("System isn't a session");
-            "{}".into()
-        }
+    pub fn materialize_document(&self) -> Option<String> {
+        self.session.as_ref().map(|s| s.materialize_document())
     }
 
-    pub fn materialize_session(&self) -> String {
-        if let SystemState::Joined(ref session_state) = self.state {
-            return serde_json::to_string(&session_state.session_snapshot).unwrap();
-        } else {
-            log::warn!("System isn't a session");
-            "{}".into()
-        }
+    pub fn materialize_session(&self) -> Option<String> {
+        self.session.as_ref().map(|s| s.materialize_session())
     }
 
     pub fn consume_latest_session_snapshot(&mut self) -> Option<String> {
-        if let SystemState::Joined(ref session_state) = self.state {
-            if session_state.session_snapshot_invalidated {
-                return Some(serde_json::to_string(&session_state.session_snapshot).unwrap());
-            } else {
-                None
-            }
-        } else {
-            log::warn!("System isn't a session");
-            None
-        }
+        self.session
+            .as_mut()
+            .and_then(|s| s.consume_latest_session_snapshot())
     }
 }
