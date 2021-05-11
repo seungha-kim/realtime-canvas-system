@@ -85,9 +85,17 @@ impl DocumentReadable for DocumentStorage {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct DocumentSnapshot {
     content: Vec<u8>,
+}
+
+impl std::fmt::Debug for DocumentSnapshot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("DocumentSnapshot")
+            .field("size", &self.content.len())
+            .finish()
+    }
 }
 
 impl From<&DocumentStorage> for DocumentSnapshot {
