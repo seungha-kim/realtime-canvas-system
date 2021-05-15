@@ -20,6 +20,7 @@ pub struct DocumentStorage {
 
     string_props: HashMap<PropKey, String>,
     float_props: HashMap<PropKey, f32>,
+    reference_props: HashMap<PropKey, ObjectId>,
 }
 
 impl DocumentStorage {
@@ -30,6 +31,7 @@ impl DocumentStorage {
 
             string_props: HashMap::new(),
             float_props: HashMap::new(),
+            reference_props: HashMap::new(),
         }
     }
 
@@ -59,6 +61,9 @@ impl DocumentStorage {
                     PropValue::Float(v) => {
                         self.float_props.insert(prop_key.clone(), v.clone());
                     }
+                    PropValue::Reference(id) => {
+                        self.reference_props.insert(prop_key.clone(), id.clone());
+                    }
                 }
                 Ok(())
             }
@@ -73,6 +78,22 @@ impl DocumentStorage {
 impl PropReadable for DocumentStorage {
     fn get_string_prop(&self, key: &PropKey) -> Option<&str> {
         self.string_props.get(key).map(String::as_ref)
+    }
+
+    fn get_id_prop(&self, key: &PropKey) -> Option<&ObjectId> {
+        self.reference_props.get(key)
+    }
+
+    fn get_float_prop(&self, key: &PropKey) -> Option<&f32> {
+        self.float_props.get(key)
+    }
+
+    fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {
+        self.objects.get(object_id)
+    }
+
+    fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {
+        Box::new(self.objects.keys())
     }
 }
 

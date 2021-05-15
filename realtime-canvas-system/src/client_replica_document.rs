@@ -87,7 +87,7 @@ impl ClientReplicaDocument {
             DocumentCommand::CreateOval { pos, r_h, r_v } => {
                 let id = uuid::Uuid::new_v4();
                 Transaction::new(vec![
-                    DocumentMutation::CreateObject(id, ObjectKind::Document),
+                    DocumentMutation::CreateObject(id, ObjectKind::Oval),
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::PosX),
                         PropValue::Float(pos.x),

@@ -53,6 +53,32 @@ impl PropReadable for TransactionalStorage {
         let from_tx = self.tx_manager.get_string_prop(key);
         from_tx.or(from_kv)
     }
+
+    fn get_id_prop(&self, key: &PropKey) -> Option<&ObjectId> {
+        let from_kv = self.doc_storage.get_id_prop(key);
+        let from_tx = self.tx_manager.get_id_prop(key);
+        from_tx.or(from_kv)
+    }
+
+    fn get_float_prop(&self, key: &PropKey) -> Option<&f32> {
+        let from_kv = self.doc_storage.get_float_prop(key);
+        let from_tx = self.tx_manager.get_float_prop(key);
+        from_tx.or(from_kv)
+    }
+
+    fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {
+        let from_kv = self.doc_storage.get_object_kind(object_id);
+        let from_tx = self.tx_manager.get_object_kind(object_id);
+        from_tx.or(from_kv)
+    }
+
+    fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {
+        Box::new(
+            self.doc_storage
+                .containing_objects()
+                .chain(self.tx_manager.containing_objects()),
+        )
+    }
 }
 
 impl DocumentReadable for TransactionalStorage {

@@ -88,12 +88,6 @@ pub enum SessionError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum PropValue {
-    String(String),
-    Float(f32),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DocumentMutation {
     CreateObject(ObjectId, ObjectKind),
     UpdateObject(PropKey, PropValue),
@@ -120,6 +114,7 @@ pub struct SessionSnapshot {
 
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PropKind {
+    Parent,
     Name,
     PosX,
     PosY,
@@ -131,8 +126,16 @@ pub enum PropKind {
 pub struct PropKey(pub ObjectId, pub PropKind);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PropValue {
+    String(String),
+    Float(f32),
+    Reference(ObjectId),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum ObjectKind {
     Document,
+    Frame,
     Oval,
 }
 

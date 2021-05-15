@@ -26,25 +26,77 @@ impl TransactionManager {
             .position(|tx| tx.id == *tx_id)
             .map(|pos| self.txs.remove(pos))
     }
+
+    fn last_mutation<'a, T, F>(&'a self, matcher: F) -> Option<T>
+    where
+        F: Fn(&'a DocumentMutation) -> Option<T>,
+    {
+        for tx in self.txs.iter().rev() {
+            for command in tx.items.iter().rev() {
+                if let Some(matched) = matcher(command) {
+                    return Some(matched);
+                }
+            }
+        }
+        None
+    }
 }
 
 impl PropReadable for TransactionManager {
     fn get_string_prop(&self, target_key: &PropKey) -> Option<&str> {
-        let mut result: Option<&str> = None;
-        // TODO: 전부 탐색할 필요 없이, 끝에서부터 역순으로 탐색해서 처음으로 만족하는 요소 반환
-        'outer: for tx in &self.txs {
-            for command in &tx.items {
-                if let DocumentMutation::UpdateObject(prop_key, prop_value) = command {
-                    if target_key == prop_key {
-                        if let PropValue::String(s) = prop_value {
-                            result = Some(s.as_str());
-                        }
-                        continue 'outer;
-                    }
-                }
+        self.last_mutation(|command| match command {
+            DocumentMutation::UpdateObject(prop_key, PropValue::String(v))
+                if prop_key == target_key =>
+            {
+                Some(v.as_str())
             }
-        }
-        result
+            _ => None,
+        })
+    }
+
+    fn get_id_prop(&self, target_key: &PropKey) -> Option<&ObjectId> {
+        self.last_mutation(|command| match command {
+            DocumentMutation::UpdateObject(prop_key, PropValue::Reference(v))
+                if prop_key == target_key =>
+            {
+                Some(v)
+            }
+            _ => None,
+        })
+    }
+
+    fn get_float_prop(&self, target_key: &PropKey) -> Option<&f32> {
+        self.last_mutation(|command| match command {
+            DocumentMutation::UpdateObject(prop_key, PropValue::Float(v))
+                if prop_key == target_key =>
+            {
+                Some(v)
+            }
+            _ => None,
+        })
+    }
+
+    fn get_object_kind(&self, target_object_id: &ObjectId) -> Option<&ObjectKind> {
+        self.last_mutation(|command| match command {
+            DocumentMutation::CreateObject(object_id, object_kind)
+                if object_id == target_object_id =>
+            {
+                Some(object_kind)
+            }
+            _ => None,
+        })
+    }
+
+    fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {
+        Box::new(
+            self.txs
+                .iter()
+                .flat_map(|tx| tx.items.iter())
+                .filter_map(|item| match item {
+                    DocumentMutation::UpdateObject(prop_key, _) => Some(&prop_key.0),
+                    _ => None,
+                }),
+        )
     }
 }
 
@@ -73,7 +125,7 @@ mod tests {
         );
 
         assert_eq!(
-            manager.get_string_prop(&PropKey(object_id, PropKind::Radius)),
+            manager.get_string_prop(&PropKey(object_id, PropKind::RadiusH)),
             None
         );
 
