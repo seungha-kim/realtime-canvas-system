@@ -18,7 +18,10 @@ pub enum DocumentCommand {
         r_h: f32,
         r_v: f32,
     },
-
+    UpdateName {
+        id: uuid::Uuid,
+        name: String,
+    },
     // TODO
     Undo,
     Redo,

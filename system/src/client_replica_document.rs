@@ -110,6 +110,12 @@ impl ClientReplicaDocument {
                     ),
                 ])
             }
+            DocumentCommand::UpdateName { id, name } => {
+                Transaction::new(vec![DocumentMutation::UpdateObject(
+                    PropKey(id, PropKind::Name),
+                    PropValue::String(name),
+                )])
+            }
             _ => unimplemented!(),
         }
     }
