@@ -1,4 +1,4 @@
-use realtime_canvas_system::{ConnectionId, ServerLeaderDocument, SessionSnapshot};
+use system::{ConnectionId, ServerLeaderDocument, SessionSnapshot};
 
 pub struct Session {
     pub connections: Vec<ConnectionId>,

@@ -1,6 +1,6 @@
 // @ts-ignore
-import mod from "../../pkg/realtime_canvas_wasm_bg.wasm";
-import init, { CanvasSystem } from "../../pkg/realtime_canvas_wasm.js";
+import mod from "../../pkg/wasm_bg.wasm";
+import init, { CanvasSystem } from "../../pkg/wasm.js";
 
 export interface Fragment {
   x1: number;

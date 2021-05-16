@@ -1241,6 +1241,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
+name = "pkg"
+version = "0.1.0"
+dependencies = [
+ "log",
+ "server",
+]
+
+[[package]]
 name = "ppv-lite86"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1321,52 +1329,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
 dependencies = [
  "rand_core",
-]
-
-[[package]]
-name = "realtime-canvas-pkg"
-version = "0.1.0"
-dependencies = [
- "log",
- "realtime-canvas-server",
-]
-
-[[package]]
-name = "realtime-canvas-server"
-version = "0.1.0"
-dependencies = [
- "actix",
- "actix-web",
- "actix-web-actors",
- "env_logger",
- "log",
- "realtime-canvas-system",
- "tokio",
-]
-
-[[package]]
-name = "realtime-canvas-system"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "euclid",
- "log",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
-name = "realtime-canvas-wasm"
-version = "0.1.0"
-dependencies = [
- "console_error_panic_hook",
- "console_log",
- "log",
- "realtime-canvas-system",
- "wasm-bindgen",
- "wasm-bindgen-test",
- "wee_alloc",
 ]
 
 [[package]]
@@ -1491,6 +1453,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "server"
+version = "0.1.0"
+dependencies = [
+ "actix",
+ "actix-web",
+ "actix-web-actors",
+ "env_logger",
+ "log",
+ "system",
+ "tokio",
+]
+
+[[package]]
 name = "sha-1"
 version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1608,6 +1583,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-xid",
+]
+
+[[package]]
+name = "system"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "euclid",
+ "log",
+ "serde",
+ "serde_json",
+ "uuid",
 ]
 
 [[package]]
@@ -1882,6 +1869,19 @@ name = "wasi"
 version = "0.10.2+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
+
+[[package]]
+name = "wasm"
+version = "0.1.0"
+dependencies = [
+ "console_error_panic_hook",
+ "console_log",
+ "log",
+ "system",
+ "wasm-bindgen",
+ "wasm-bindgen-test",
+ "wee_alloc",
+]
 
 [[package]]
 name = "wasm-bindgen"

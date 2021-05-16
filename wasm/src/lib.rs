@@ -3,11 +3,11 @@ use std::num::Wrapping;
 
 use wasm_bindgen::prelude::*;
 
-use realtime_canvas_system::{
+use session_state::SessionState;
+use system::{
     bincode, serde_json, uuid, CommandId, CommandResult, IdentifiableCommand, IdentifiableEvent,
     SessionCommand, SystemCommand, SystemEvent,
 };
-use session_state::SessionState;
 
 mod session_state;
 mod utils;

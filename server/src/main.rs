@@ -1,7 +1,7 @@
 use actix_web::{web, App, HttpServer};
 
-use realtime_canvas_server::connection::ws_index;
-use realtime_canvas_server::server::spawn_server;
+use server::connection::ws_index;
+use server::server::spawn_server;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {

@@ -2,7 +2,7 @@ use actix::{Actor, ActorContext, AsyncContext, Handler, Message, Running, Stream
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 
-use realtime_canvas_system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent};
+use system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent};
 
 use crate::connection_tx_storage::ConnectionTx;
 use crate::server::ServerTx;
@@ -98,7 +98,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ConnectionActor {
                     self.srv_tx
                         .try_send(ConnectionCommand::Disconnect { from: id })
                         .unwrap();
-                    // TODO: realtime-canvas-system 쪽에서 Disconnect 가 처리되었을 때 실제로 커넥션이 끊어지는 메커니즘
+                    // TODO: system 쪽에서 Disconnect 가 처리되었을 때 실제로 커넥션이 끊어지는 메커니즘
                 }
                 ctx.stop();
             }

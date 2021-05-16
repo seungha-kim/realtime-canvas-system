@@ -1,7 +1,7 @@
 use crate::session::Session;
-use realtime_canvas_system::{ConnectionId, SessionId};
 use std::collections::HashMap;
 use std::num::Wrapping;
+use system::{ConnectionId, SessionId};
 
 pub enum ConnectionState {
     InLobby,

@@ -1,6 +1,6 @@
 use wasm_bindgen::__rt::std::collections::HashSet;
 
-use realtime_canvas_system::{
+use system::{
     serde_json, ClientReplicaDocument, DocumentCommand, DocumentSnapshot, Materialize, ObjectId,
     SessionEvent, SessionId, SessionSnapshot, Transaction,
 };

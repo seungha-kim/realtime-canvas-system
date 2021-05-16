@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::{channel, Sender};
 
-use realtime_canvas_system::{
+use system::{
     CommandResult, ConnectionId, DocumentReadable, FatalError, IdentifiableCommand,
     IdentifiableEvent, RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
     SessionSnapshot, SystemCommand, SystemError, SystemEvent,

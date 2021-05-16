@@ -1,6 +1,6 @@
 use crate::connection::ConnectionEvent;
-use realtime_canvas_system::ConnectionId;
 use std::collections::HashMap;
+use system::ConnectionId;
 
 pub type ConnectionTx = tokio::sync::mpsc::Sender<ConnectionEvent>;
 

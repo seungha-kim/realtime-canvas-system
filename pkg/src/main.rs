@@ -1,14 +1,14 @@
-use realtime_canvas_server::actix_web::{self, web, App, HttpRequest, HttpResponse, HttpServer};
-use realtime_canvas_server::connection::ws_index;
-use realtime_canvas_server::server::spawn_server;
+use server::actix_web::{self, web, App, HttpRequest, HttpResponse, HttpServer};
+use server::connection::ws_index;
+use server::server::spawn_server;
 
 async fn html_index(_req: HttpRequest) -> HttpResponse {
-    let html = include_str!("../../realtime-canvas-wasm/demo/index.html");
+    let html = include_str!("../../wasm/demo/index.html");
     HttpResponse::Ok().content_type("text/html").body(html)
 }
 
 async fn app_js(_req: HttpRequest) -> HttpResponse {
-    let js = include_str!("../../realtime-canvas-wasm/demo/dist/app.js");
+    let js = include_str!("../../wasm/demo/dist/app.js");
     HttpResponse::Ok().content_type("text/javascript").body(js)
 }
 

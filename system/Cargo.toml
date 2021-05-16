@@ -1,5 +1,5 @@
 [package]
-name = "realtime-canvas-system"
+name = "system"
 version = "0.1.0"
 authors = ["Kim Seungha <seungha.me@gmail.com>"]
 edition = "2018"

@@ -1,5 +1,5 @@
-use realtime_canvas_system::euclid::default::Point2D;
-use realtime_canvas_system::{
+use system::euclid::default::Point2D;
+use system::{
     ClientReplicaDocument, DocumentCommand, DocumentMutation, DocumentReadable, Materialize,
     ServerLeaderDocument,
 };
