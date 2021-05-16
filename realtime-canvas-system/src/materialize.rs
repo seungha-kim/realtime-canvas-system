@@ -5,9 +5,15 @@ use crate::traits::{DocumentReadable, PropReadable};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DocumentMaterial {
-    id: ObjectId,
-    name: String,
-    children: Vec<ObjectId>,
+    pub id: ObjectId,
+    pub name: String,
+    pub children: Vec<ObjectId>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub enum ObjectMaterial {
+    Document(DocumentMaterial),
+    Oval(OvalMaterial),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -70,5 +76,15 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
                     .unwrap_or(10.0),
             })
             .ok_or(())
+    }
+
+    fn materialize_object(&self, object_id: &ObjectId) -> Result<ObjectMaterial, ()> {
+        match self.readable().get_object_kind(object_id).unwrap() {
+            ObjectKind::Document => Ok(ObjectMaterial::Document(self.materialize_document())),
+            ObjectKind::Oval => Ok(ObjectMaterial::Oval(
+                self.materialize_oval(object_id).unwrap(),
+            )),
+            _ => Err(()),
+        }
     }
 }

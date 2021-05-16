@@ -15,9 +15,10 @@ pub trait PropReadable {
     fn get_children(&self, target_parent_id: &ObjectId) -> HashSet<ObjectId> {
         // TODO: optimize, order
         self.containing_objects()
-            .filter_map(|item| {
-                self.get_id_prop(&PropKey(item.clone(), PropKind::Parent))
-                    .filter(|parent_id| parent_id == &target_parent_id)
+            .filter(|object_id| {
+                self.get_id_prop(&PropKey(**object_id, PropKind::Parent))
+                    .map(|parent_id| parent_id == target_parent_id)
+                    .unwrap_or(false)
             })
             .cloned()
             .collect()

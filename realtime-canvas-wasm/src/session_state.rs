@@ -93,4 +93,8 @@ impl SessionState {
     pub fn materialize_session(&self) -> String {
         serde_json::to_string(&self.session_snapshot).unwrap()
     }
+
+    pub fn materialize_object(&self, object_id: &ObjectId) -> String {
+        serde_json::to_string(&self.document.materialize_object(&object_id).unwrap()).unwrap()
+    }
 }

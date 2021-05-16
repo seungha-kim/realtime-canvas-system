@@ -4,7 +4,7 @@ use std::num::Wrapping;
 use wasm_bindgen::prelude::*;
 
 use realtime_canvas_system::{
-    bincode, serde_json, CommandId, CommandResult, IdentifiableCommand, IdentifiableEvent,
+    bincode, serde_json, uuid, CommandId, CommandResult, IdentifiableCommand, IdentifiableEvent,
     SessionCommand, SystemCommand, SystemEvent,
 };
 use session_state::SessionState;
@@ -141,6 +141,13 @@ impl CanvasSystem {
 
     pub fn materialize_session(&self) -> Option<String> {
         self.session.as_ref().map(|s| s.materialize_session())
+    }
+
+    pub fn materialize_object(&self, uuid_str: String) -> Option<String> {
+        let object_id = uuid::Uuid::parse_str(&uuid_str).unwrap();
+        self.session
+            .as_ref()
+            .map(|s| s.materialize_object(&object_id))
     }
 
     pub fn consume_latest_session_snapshot(&mut self) -> Option<String> {

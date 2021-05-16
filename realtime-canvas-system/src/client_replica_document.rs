@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use crate::materialize::Materialize;
 use crate::traits::DocumentReadable;
 use crate::transactional_storage::TransactionalStorage;
-use crate::{DocumentCommand, DocumentSnapshot};
+use crate::{DocumentCommand, DocumentSnapshot, PropReadable};
 
 use super::message::*;
 
@@ -24,9 +24,9 @@ pub struct TransactionResult {
 
 impl ClientReplicaDocument {
     pub fn new(snapshot: DocumentSnapshot) -> Self {
-        Self {
-            storage: TransactionalStorage::from_snapshot(snapshot),
-        }
+        let storage = TransactionalStorage::from_snapshot(snapshot);
+        log::debug!("ClientReplicaDocument created: {}", storage.document_id());
+        Self { storage }
     }
 
     pub fn handle_command(&mut self, command: DocumentCommand) -> Result<TransactionResult, ()> {
@@ -89,6 +89,10 @@ impl ClientReplicaDocument {
                 Transaction::new(vec![
                     DocumentMutation::CreateObject(id, ObjectKind::Oval),
                     DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Parent),
+                        PropValue::Reference(self.readable().document_id()),
+                    ),
+                    DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::PosX),
                         PropValue::Float(pos.x),
                     ),
@@ -113,10 +117,19 @@ impl ClientReplicaDocument {
     fn invalidated_object_ids(&self, tx: &Transaction) -> HashSet<ObjectId> {
         tx.items
             .iter()
-            .map(|m| match m {
-                DocumentMutation::CreateObject(object_id, _) => object_id.clone(),
-                DocumentMutation::UpdateObject(prop_key, _) => prop_key.0,
-                DocumentMutation::DeleteObject(object_id) => object_id.clone(),
+            .filter_map(|m| match m {
+                DocumentMutation::UpdateObject(
+                    PropKey(_, PropKind::Parent),
+                    PropValue::Reference(parent_id),
+                ) => Some(parent_id.clone()),
+                DocumentMutation::UpdateObject(prop_key, _) => Some(prop_key.0),
+                DocumentMutation::DeleteObject(object_id) => Some(
+                    self.readable()
+                        .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
+                        .unwrap()
+                        .clone(),
+                ),
+                _ => None,
             })
             .collect()
     }

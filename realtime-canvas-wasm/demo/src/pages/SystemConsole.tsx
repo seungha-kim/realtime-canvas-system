@@ -123,10 +123,27 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
     this.prevPos = { x: x2, y: y2 };
   };
 
+  handleOvalButtonClick = () => {
+    this.props.systemFacade.pushDocumentCommand({
+      CreateOval: {
+        pos: [100 * Math.random(), 100 * Math.random()],
+        r_h: 10,
+        r_v: 10,
+      },
+    });
+  };
+
   render() {
     const { documentMaterial } = this.state;
     return (
-      <div>
+      <div
+        style={{
+          width: 500,
+          height: 500,
+          border: "1px solid red",
+          position: "relative",
+        }}
+      >
         <h1 onClick={this.handleTitleClick}>{documentMaterial?.name}</h1>
         <canvas
           ref={this.canvasRef}
@@ -138,6 +155,7 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
           onMouseUp={this.handleMouseUp}
         />
         <button onClick={this.handleLeave}>Leave</button>
+        <button onClick={this.handleOvalButtonClick}>Create Oval</button>
         <div>
           {this.state.sessionSnapshot?.connections.map((connectionId) => {
             return (
@@ -147,6 +165,26 @@ class SystemConsoleInner extends React.Component<InnerProps, InnerState> {
             );
           })}
         </div>
+        {documentMaterial?.children.map((cid) => (
+          <div key={cid}>
+            {(() => {
+              const oval = this.props.systemFacade.materializeObject(cid).Oval!;
+              return (
+                <div
+                  onClick={() => alert(oval.name)}
+                  style={{
+                    position: "absolute",
+                    left: oval.pos_x,
+                    top: oval.pos_y,
+                    width: oval.r_h * 2,
+                    height: oval.r_v * 2,
+                    border: "1px solid green",
+                  }}
+                />
+              );
+            })()}
+          </div>
+        ))}
       </div>
     );
   }

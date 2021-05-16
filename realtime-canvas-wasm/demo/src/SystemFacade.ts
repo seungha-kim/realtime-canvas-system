@@ -51,10 +51,28 @@ type CommandResolver = {
 export type DocumentMaterial = {
   id: string;
   name: string;
+  children: string[];
+};
+
+export type ObjectMaterial = {
+  Document?: DocumentMaterial;
+  Oval?: {
+    id: string;
+    name: string;
+    pos_x: number;
+    pos_y: number;
+    r_h: number;
+    r_v: number;
+  };
 };
 
 export type DocumentCommand = {
   UpdateDocumentName?: { name: string };
+  CreateOval?: {
+    pos: [number, number];
+    r_h: number;
+    r_v: number;
+  };
 };
 
 type InvalidationListener = (objectId: string) => void;
@@ -136,6 +154,10 @@ export class SystemFacade {
 
   materializeSession(): SessionSnapshot {
     return JSON.parse(this.system.materialize_session()!);
+  }
+
+  materializeObject(objectId: string): ObjectMaterial {
+    return JSON.parse(this.system.materialize_object(objectId)!);
   }
 
   pushDocumentCommand(command: DocumentCommand) {

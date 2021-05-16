@@ -20,6 +20,7 @@ pub extern crate bincode;
 pub extern crate euclid;
 pub extern crate serde;
 pub extern crate serde_json;
+pub extern crate uuid;
 
 #[cfg(test)]
 mod tests {
