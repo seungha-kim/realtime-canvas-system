@@ -11,7 +11,8 @@ pub enum DocumentCommand {
         r_h: f32,
         r_v: f32,
     },
-    UpdateOvalPosition {
+    UpdatePosition {
+        id: uuid::Uuid,
         pos: Point2D<f32>,
     },
     UpdateOvalRadius {

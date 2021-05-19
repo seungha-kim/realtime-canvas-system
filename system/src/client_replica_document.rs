@@ -116,6 +116,16 @@ impl ClientReplicaDocument {
                     PropValue::String(name),
                 )])
             }
+            DocumentCommand::UpdatePosition { id, pos } => Transaction::new(vec![
+                DocumentMutation::UpdateObject(
+                    PropKey(id, PropKind::PosX),
+                    PropValue::Float(pos.x),
+                ),
+                DocumentMutation::UpdateObject(
+                    PropKey(id, PropKind::PosY),
+                    PropValue::Float(pos.y),
+                ),
+            ]),
             _ => unimplemented!(),
         }
     }
