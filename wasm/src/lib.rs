@@ -155,4 +155,10 @@ impl CanvasSystem {
             .as_mut()
             .and_then(|s| s.consume_latest_session_snapshot())
     }
+
+    pub fn consume_live_pointer_events(&mut self) -> Option<String> {
+        self.session
+            .as_mut()
+            .map(|s| s.consume_live_pointer_events())
+    }
 }

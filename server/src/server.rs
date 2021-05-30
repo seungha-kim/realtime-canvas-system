@@ -2,8 +2,8 @@ use tokio::sync::mpsc::{channel, Sender};
 
 use system::{
     CommandResult, ConnectionId, DocumentReadable, FatalError, IdentifiableCommand,
-    IdentifiableEvent, RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
-    SessionSnapshot, SystemCommand, SystemError, SystemEvent,
+    IdentifiableEvent, LivePointerEvent, RollbackReason, SessionCommand, SessionError,
+    SessionEvent, SessionId, SessionSnapshot, SystemCommand, SystemError, SystemEvent,
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
@@ -50,15 +50,17 @@ impl Server {
                     },
             } => match self.handle_system_command(from, system_command).await {
                 Ok(system_event) => {
-                    self.connections
-                        .send(
-                            from,
-                            ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
-                                command_id: command_id.clone(),
-                                result: CommandResult::SystemEvent(system_event),
-                            }),
-                        )
-                        .await
+                    if let Some(system_event) = system_event {
+                        self.connections
+                            .send(
+                                from,
+                                ConnectionEvent::IdentifiableEvent(IdentifiableEvent::ByMyself {
+                                    command_id: command_id.clone(),
+                                    result: CommandResult::SystemEvent(system_event),
+                                }),
+                            )
+                            .await
+                    }
                 }
                 Err(system_error) => match system_error {
                     SystemError::FatalError(ref fatal_error) => {
@@ -88,7 +90,7 @@ impl Server {
         &mut self,
         from: &ConnectionId,
         command: &SystemCommand,
-    ) -> Result<SystemEvent, SystemError> {
+    ) -> Result<Option<SystemEvent>, SystemError> {
         match command {
             SystemCommand::CreateSession => {
                 let session_id = self.server_state.create_session(from);
@@ -98,11 +100,11 @@ impl Server {
                     .get(&session_id)
                     .expect("session must exist");
                 let connections = session.connections.clone();
-                Ok(SystemEvent::JoinedSession {
+                Ok(Some(SystemEvent::JoinedSession {
                     session_id,
                     session_snapshot: SessionSnapshot { connections },
                     document_snapshot: session.document.snapshot(),
-                })
+                }))
             }
             SystemCommand::JoinSession { session_id } => {
                 let result = self.server_state.join_session(from, session_id);
@@ -116,11 +118,11 @@ impl Server {
                             Some(from),
                         )
                         .await;
-                        Ok(SystemEvent::JoinedSession {
+                        Ok(Some(SystemEvent::JoinedSession {
                             session_id: session_id.clone(),
                             session_snapshot,
                             document_snapshot,
-                        })
+                        }))
                     } else {
                         log::warn!("Tried to join non-existing session.");
                         Err(SystemError::InvalidSessionId)
@@ -131,7 +133,7 @@ impl Server {
             }
             SystemCommand::LeaveSession => {
                 if let Some(_) = self.leave_session(from).await {
-                    Ok(SystemEvent::LeftSession)
+                    Ok(Some(SystemEvent::LeftSession))
                 } else {
                     Err(SystemError::FatalError(FatalError {
                         reason: "cannot leave session".into(),
@@ -141,7 +143,7 @@ impl Server {
             SystemCommand::SessionCommand(ref session_command) => self
                 .handle_session_command(from, session_command)
                 .await
-                .map(|v| SystemEvent::SessionEvent(v))
+                .map(|v| v.map(|s| SystemEvent::SessionEvent(s)))
                 .map_err(|v| match v {
                     SessionError::FatalError(fatal_error) => SystemError::FatalError(fatal_error),
                 }),
@@ -152,17 +154,21 @@ impl Server {
         &mut self,
         from: &ConnectionId,
         command: &SessionCommand,
-    ) -> Result<SessionEvent, SessionError> {
+    ) -> Result<Option<SessionEvent>, SessionError> {
         if let Some(ConnectionState::Joined(session_id)) =
             self.server_state.connection_states.get(&from)
         {
             let session_id = session_id.clone();
             match command {
-                SessionCommand::Fragment(fragment) => {
-                    let session_event = SessionEvent::Fragment(fragment.clone());
+                SessionCommand::LivePointer(live_pointer) => {
+                    let session_event = SessionEvent::LivePointer(LivePointerEvent {
+                        x: live_pointer.x,
+                        y: live_pointer.y,
+                        connection_id: from.clone(),
+                    });
                     self.broadcast_session_event(&session_id, session_event.clone(), Some(from))
                         .await;
-                    Ok(session_event)
+                    Ok(None)
                 }
                 SessionCommand::Transaction(tx) => {
                     let result = self
@@ -180,12 +186,12 @@ impl Server {
                             Some(from),
                         )
                         .await;
-                        Ok(session_event)
+                        Ok(Some(session_event))
                     } else {
-                        Ok(SessionEvent::TransactionNack(
+                        Ok(Some(SessionEvent::TransactionNack(
                             tx.id.clone(),
                             RollbackReason::Something,
-                        ))
+                        )))
                     }
                 }
             }

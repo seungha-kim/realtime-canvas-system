@@ -1,8 +1,9 @@
 use wasm_bindgen::__rt::std::collections::HashSet;
 
+use std::collections::VecDeque;
 use system::{
-    serde_json, ClientReplicaDocument, DocumentCommand, DocumentSnapshot, Materialize, ObjectId,
-    SessionEvent, SessionId, SessionSnapshot, Transaction,
+    serde_json, ClientReplicaDocument, DocumentCommand, DocumentSnapshot, LivePointerEvent,
+    Materialize, ObjectId, SessionEvent, SessionId, SessionSnapshot, Transaction,
 };
 
 pub struct SessionState {
@@ -10,6 +11,7 @@ pub struct SessionState {
     session_snapshot_invalidated: bool,
     document: ClientReplicaDocument,
     invalidated_object_ids: HashSet<ObjectId>,
+    pending_live_pointer_events: VecDeque<LivePointerEvent>,
 }
 
 impl SessionState {
@@ -23,6 +25,7 @@ impl SessionState {
             session_snapshot,
             session_snapshot_invalidated: true,
             invalidated_object_ids: HashSet::new(),
+            pending_live_pointer_events: VecDeque::new(),
         }
     }
     pub fn handle_session_event(&mut self, event: SessionEvent) {
@@ -43,8 +46,11 @@ impl SessionState {
             SessionEvent::SessionStateChanged(session_snapshot) => {
                 self.session_snapshot = session_snapshot;
             }
-            SessionEvent::Fragment(fragment) => {
-                log::trace!("Fragment: {:?}", fragment);
+            SessionEvent::LivePointer(live_pointer) => {
+                if self.pending_live_pointer_events.len() > 100 {
+                    log::warn!("live pointer events must be consumed")
+                }
+                self.pending_live_pointer_events.push_back(live_pointer);
             }
             _ => unimplemented!(),
         }
@@ -83,6 +89,16 @@ impl SessionState {
         } else {
             None
         }
+    }
+
+    pub fn consume_live_pointer_events(&mut self) -> String {
+        return serde_json::to_string(
+            &self
+                .pending_live_pointer_events
+                .drain(..)
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
     }
 
     pub fn materialize_document(&self) -> String {

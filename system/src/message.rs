@@ -67,13 +67,13 @@ pub enum SystemError {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SessionCommand {
-    Fragment(Fragment),
+    LivePointer(LivePointerCommand),
     Transaction(Transaction),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SessionEvent {
-    Fragment(Fragment),
+    LivePointer(LivePointerEvent),
     SessionStateChanged(SessionSnapshot),
     SomeoneJoined(ConnectionId),
     SomeoneLeft(ConnectionId),
@@ -100,11 +100,16 @@ pub enum RollbackReason {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Fragment {
-    pub x1: f32,
-    pub y1: f32,
-    pub x2: f32,
-    pub y2: f32,
+pub struct LivePointerCommand {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LivePointerEvent {
+    pub connection_id: ConnectionId,
+    pub x: f32,
+    pub y: f32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
