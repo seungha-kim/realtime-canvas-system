@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::traits::{DocumentReadable, PropReadable};
 
@@ -17,6 +17,7 @@ use uuid::Uuid;
 pub struct DocumentStorage {
     document_id: uuid::Uuid,
     objects: HashMap<ObjectId, ObjectKind>,
+    deleted_objects: HashSet<ObjectId>,
 
     string_props: HashMap<PropKey, String>,
     float_props: HashMap<PropKey, f32>,
@@ -28,6 +29,7 @@ impl DocumentStorage {
         DocumentStorage {
             document_id: uuid::Uuid::new_v4(),
             objects: HashMap::new(),
+            deleted_objects: HashSet::new(),
 
             string_props: HashMap::new(),
             float_props: HashMap::new(),
@@ -67,8 +69,10 @@ impl DocumentStorage {
                 }
                 Ok(())
             }
-            DocumentMutation::DeleteObject(_) => {
-                // TODO: delete - prop 다 삭제, children 재귀적으로 다 삭제, 인가?
+            DocumentMutation::DeleteObject(object_id) => {
+                if self.objects.contains_key(object_id) {
+                    self.deleted_objects.insert(object_id.clone());
+                }
                 Ok(())
             }
         }
@@ -90,6 +94,10 @@ impl PropReadable for DocumentStorage {
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {
         self.objects.get(object_id)
+    }
+
+    fn is_deleted(&self, object_id: &ObjectId) -> Option<bool> {
+        Some(self.deleted_objects.contains(object_id))
     }
 
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {

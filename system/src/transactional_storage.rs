@@ -72,6 +72,12 @@ impl PropReadable for TransactionalStorage {
         from_tx.or(from_kv)
     }
 
+    fn is_deleted(&self, object_id: &ObjectId) -> Option<bool> {
+        self.tx_manager
+            .is_deleted(object_id)
+            .or(self.doc_storage.is_deleted(object_id))
+    }
+
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {
         Box::new(
             self.doc_storage

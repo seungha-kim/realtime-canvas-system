@@ -126,6 +126,9 @@ impl ClientReplicaDocument {
                     PropValue::Float(pos.y),
                 ),
             ]),
+            DocumentCommand::DeleteObject { id } => {
+                Transaction::new(vec![DocumentMutation::DeleteObject(id)])
+            }
             _ => unimplemented!(),
         }
     }

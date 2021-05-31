@@ -87,6 +87,20 @@ impl PropReadable for TransactionManager {
         })
     }
 
+    fn is_deleted(&self, object_id: &ObjectId) -> Option<bool> {
+        for tx in &self.txs {
+            for mutation in &tx.items {
+                match mutation {
+                    DocumentMutation::DeleteObject(candidate) if candidate == object_id => {
+                        return Some(true)
+                    }
+                    _ => {}
+                }
+            }
+        }
+        None
+    }
+
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {
         Box::new(
             self.txs

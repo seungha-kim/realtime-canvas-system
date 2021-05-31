@@ -23,6 +23,9 @@ pub enum DocumentCommand {
         id: uuid::Uuid,
         name: String,
     },
+    DeleteObject {
+        id: uuid::Uuid,
+    },
     // TODO
     Undo,
     Redo,
