@@ -6,6 +6,8 @@ use crate::transactional_storage::TransactionalStorage;
 use crate::{DocumentCommand, DocumentSnapshot, PropReadable};
 
 use super::message::*;
+use base95::Base95;
+use std::str::FromStr;
 
 pub struct ClientReplicaDocument {
     storage: TransactionalStorage,
@@ -86,11 +88,29 @@ impl ClientReplicaDocument {
             }
             DocumentCommand::CreateOval { pos, r_h, r_v } => {
                 let id = uuid::Uuid::new_v4();
+                let parent_id = self.readable().document_id();
+                let children = self.storage.get_children(&parent_id);
+
+                let index = children
+                    .last()
+                    .and_then(|last_child_id| {
+                        self.storage
+                            .get_string_prop(&PropKey(last_child_id.clone(), PropKind::Index))
+                    })
+                    // TODO: Base95::from_str 실패하는 경우에 대한 처리
+                    .and_then(|last_index_str| Base95::from_str(last_index_str).ok())
+                    .map(|last_index| Base95::avg_with_one(&last_index))
+                    .unwrap_or(Base95::mid());
+
                 Transaction::new(vec![
                     DocumentMutation::CreateObject(id, ObjectKind::Oval),
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::Parent),
-                        PropValue::Reference(self.readable().document_id()),
+                        PropValue::Reference(parent_id),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Index),
+                        PropValue::String(index.to_string()),
                     ),
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::PosX),

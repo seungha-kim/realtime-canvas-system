@@ -37,9 +37,8 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
             .unwrap_or("Untitled")
             .into();
 
-        let mut children: Vec<ObjectId> = readable.get_children(&document_id).into_iter().collect();
-        // TODO: 제대로된 기준으로 정렬해야 함
-        children.sort();
+        let children = readable.get_children(&document_id);
+
         DocumentMaterial {
             id: document_id,
             name,

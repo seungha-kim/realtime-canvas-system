@@ -125,6 +125,7 @@ pub enum PropKind {
     PosY,
     RadiusH,
     RadiusV,
+    Index,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]

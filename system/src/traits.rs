@@ -1,6 +1,5 @@
 use crate::document_storage::DocumentSnapshot;
 use crate::{ObjectId, ObjectKind, PropKey, PropKind};
-use std::collections::HashSet;
 
 pub trait PropReadable {
     fn get_string_prop(&self, key: &PropKey) -> Option<&str>;
@@ -13,9 +12,10 @@ pub trait PropReadable {
     /// 저장소가 가지고 있는 ObjectId 들을 반환. 중복될 수 있음 - 추후 최적화 시 삭제 예정 (static dispatch)
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_>;
 
-    fn get_children(&self, target_parent_id: &ObjectId) -> HashSet<ObjectId> {
-        // TODO: optimize, order
-        self.containing_objects()
+    fn get_children(&self, target_parent_id: &ObjectId) -> Vec<ObjectId> {
+        // TODO: optimize
+        let mut result = self
+            .containing_objects()
             .filter(|object_id| !self.is_deleted(object_id).unwrap_or(true))
             .filter(|object_id| {
                 self.get_id_prop(&PropKey(**object_id, PropKind::Parent))
@@ -23,7 +23,16 @@ pub trait PropReadable {
                     .unwrap_or(false)
             })
             .cloned()
-            .collect()
+            .collect::<Vec<_>>();
+
+        result.sort_by_key(|id| {
+            self.get_string_prop(&PropKey(id.clone(), PropKind::Index))
+                .unwrap_or("")
+        });
+
+        // TODO: containing_objects 가 중복될 수 있다는 가정이 사라지면 필요 없어짐
+        result.dedup();
+        result
     }
 }
 
