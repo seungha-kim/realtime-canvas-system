@@ -66,6 +66,12 @@ impl PropReadable for TransactionalStorage {
         from_tx.or(from_kv)
     }
 
+    fn get_color_prop(&self, key: &PropKey) -> Option<&Color> {
+        let from_kv = self.doc_storage.get_color_prop(key);
+        let from_tx = self.tx_manager.get_color_prop(key);
+        from_tx.or(from_kv)
+    }
+
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {
         let from_kv = self.doc_storage.get_object_kind(object_id);
         let from_tx = self.tx_manager.get_object_kind(object_id);

@@ -7,6 +7,19 @@ pub type CommandId = u16;
 pub type TransactionId = uuid::Uuid;
 pub type ObjectId = uuid::Uuid;
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Color {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
+
+impl std::default::Default for Color {
+    fn default() -> Self {
+        Self { r: 0, g: 0, b: 0 }
+    }
+}
+
 /// FatalError makes connection be closed.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FatalError {
@@ -126,6 +139,7 @@ pub enum PropKind {
     RadiusH,
     RadiusV,
     Index,
+    FillColor,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
@@ -136,6 +150,7 @@ pub enum PropValue {
     String(String),
     Float(f32),
     Reference(ObjectId),
+    Color(Color),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]

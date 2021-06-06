@@ -86,7 +86,12 @@ impl ClientReplicaDocument {
                     PropValue::String(name),
                 )])
             }
-            DocumentCommand::CreateOval { pos, r_h, r_v } => {
+            DocumentCommand::CreateOval {
+                pos,
+                r_h,
+                r_v,
+                fill_color,
+            } => {
                 let id = uuid::Uuid::new_v4();
                 let parent_id = self.readable().document_id();
                 let children = self.storage.get_children_indices(&parent_id);
@@ -127,6 +132,10 @@ impl ClientReplicaDocument {
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::RadiusV),
                         PropValue::Float(r_v),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::FillColor),
+                        PropValue::Color(fill_color),
                     ),
                 ])
             }

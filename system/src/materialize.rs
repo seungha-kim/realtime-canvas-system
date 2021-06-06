@@ -24,6 +24,7 @@ pub struct OvalMaterial {
     pos_y: f32,
     r_h: f32,
     r_v: f32,
+    fill_color: Color,
 }
 
 pub trait Materialize<R: PropReadable + DocumentReadable> {
@@ -77,6 +78,10 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
                     .get_float_prop(&PropKey(object_id.clone(), PropKind::RadiusV))
                     .cloned()
                     .unwrap_or(10.0),
+                fill_color: readable
+                    .get_color_prop(&PropKey(object_id.clone(), PropKind::FillColor))
+                    .cloned()
+                    .unwrap_or(Color::default()),
             })
             .ok_or(())
     }

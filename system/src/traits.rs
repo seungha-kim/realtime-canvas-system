@@ -1,5 +1,5 @@
 use crate::document_storage::DocumentSnapshot;
-use crate::{ObjectId, ObjectKind, PropKey, PropKind};
+use crate::{Color, ObjectId, ObjectKind, PropKey, PropKind};
 use base95::Base95;
 use std::collections::HashSet;
 use std::str::FromStr;
@@ -8,6 +8,7 @@ pub trait PropReadable {
     fn get_string_prop(&self, key: &PropKey) -> Option<&str>;
     fn get_id_prop(&self, key: &PropKey) -> Option<&ObjectId>;
     fn get_float_prop(&self, key: &PropKey) -> Option<&f32>;
+    fn get_color_prop(&self, key: &PropKey) -> Option<&Color>;
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind>;
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool>;

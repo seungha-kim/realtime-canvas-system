@@ -21,6 +21,7 @@ pub struct DocumentStorage {
 
     string_props: HashMap<PropKey, String>,
     float_props: HashMap<PropKey, f32>,
+    color_props: HashMap<PropKey, Color>,
     reference_props: HashMap<PropKey, ObjectId>,
 }
 
@@ -33,6 +34,7 @@ impl DocumentStorage {
 
             string_props: HashMap::new(),
             float_props: HashMap::new(),
+            color_props: HashMap::new(),
             reference_props: HashMap::new(),
         }
     }
@@ -66,6 +68,9 @@ impl DocumentStorage {
                     PropValue::Reference(id) => {
                         self.reference_props.insert(prop_key.clone(), id.clone());
                     }
+                    PropValue::Color(color) => {
+                        self.color_props.insert(prop_key.clone(), color.clone());
+                    }
                 }
                 Ok(())
             }
@@ -90,6 +95,10 @@ impl PropReadable for DocumentStorage {
 
     fn get_float_prop(&self, key: &PropKey) -> Option<&f32> {
         self.float_props.get(key)
+    }
+
+    fn get_color_prop(&self, key: &PropKey) -> Option<&Color> {
+        self.color_props.get(key)
     }
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {

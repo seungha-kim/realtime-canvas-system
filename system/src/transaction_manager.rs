@@ -76,6 +76,17 @@ impl PropReadable for TransactionManager {
         })
     }
 
+    fn get_color_prop(&self, target_key: &PropKey) -> Option<&Color> {
+        self.last_mutation(|command| match command {
+            DocumentMutation::UpdateObject(prop_key, PropValue::Color(v))
+                if prop_key == target_key =>
+            {
+                Some(v)
+            }
+            _ => None,
+        })
+    }
+
     fn get_object_kind(&self, target_object_id: &ObjectId) -> Option<&ObjectKind> {
         self.last_mutation(|command| match command {
             DocumentMutation::CreateObject(object_id, object_kind)

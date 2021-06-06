@@ -1,3 +1,4 @@
+use crate::Color;
 use euclid::default::Point2D;
 use serde::{Deserialize, Serialize};
 
@@ -10,6 +11,7 @@ pub enum DocumentCommand {
         pos: Point2D<f32>,
         r_h: f32,
         r_v: f32,
+        fill_color: Color,
     },
     UpdatePosition {
         id: uuid::Uuid,
