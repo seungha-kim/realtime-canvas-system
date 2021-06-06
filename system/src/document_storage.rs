@@ -27,9 +27,12 @@ pub struct DocumentStorage {
 
 impl DocumentStorage {
     pub fn new() -> Self {
+        let document_id = uuid::Uuid::new_v4();
+        let mut objects = HashMap::new();
+        objects.insert(document_id.clone(), ObjectKind::Document);
         DocumentStorage {
-            document_id: uuid::Uuid::new_v4(),
-            objects: HashMap::new(),
+            document_id,
+            objects,
             deleted_objects: HashSet::new(),
 
             string_props: HashMap::new(),
