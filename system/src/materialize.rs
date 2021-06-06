@@ -37,7 +37,11 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
             .unwrap_or("Untitled")
             .into();
 
-        let children = readable.get_children(&document_id);
+        let children = readable
+            .get_children_indices(&document_id)
+            .iter()
+            .map(|(object_id, _)| object_id.clone())
+            .collect();
 
         DocumentMaterial {
             id: document_id,

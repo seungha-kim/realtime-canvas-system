@@ -89,11 +89,11 @@ impl ClientReplicaDocument {
             DocumentCommand::CreateOval { pos, r_h, r_v } => {
                 let id = uuid::Uuid::new_v4();
                 let parent_id = self.readable().document_id();
-                let children = self.storage.get_children(&parent_id);
+                let children = self.storage.get_children_indices(&parent_id);
 
                 let index = children
                     .last()
-                    .and_then(|last_child_id| {
+                    .and_then(|(last_child_id, _)| {
                         self.storage
                             .get_string_prop(&PropKey(last_child_id.clone(), PropKind::Index))
                     })
@@ -149,6 +149,29 @@ impl ClientReplicaDocument {
             DocumentCommand::DeleteObject { id } => {
                 Transaction::new(vec![DocumentMutation::DeleteObject(id)])
             }
+            DocumentCommand::UpdateIndex { id, int_index } => {
+                // TODO: int_index 가 범위를 벗어날 때에 대한 처리 - 메소드가 Result 를 반환해야 함
+                let new_index_str = self
+                    .storage
+                    .get_id_prop(&PropKey(id, PropKind::Parent))
+                    .map(|parent_id| {
+                        let indices = self.storage.get_children_indices(&parent_id);
+                        if int_index == 0 {
+                            Base95::avg_with_zero(&indices[0].1)
+                        } else if int_index == indices.len() {
+                            Base95::avg_with_one(&indices[indices.len() - 1].1)
+                        } else {
+                            Base95::avg(&indices[int_index - 1].1, &indices[int_index].1)
+                        }
+                    })
+                    .map(|new_index| new_index.to_string())
+                    .unwrap(); // TODO: unwrap
+
+                Transaction::new(vec![DocumentMutation::UpdateObject(
+                    PropKey(id, PropKind::Index),
+                    PropValue::String(new_index_str),
+                )])
+            }
             _ => unimplemented!(),
         }
     }
@@ -161,13 +184,14 @@ impl ClientReplicaDocument {
                     PropKey(_, PropKind::Parent),
                     PropValue::Reference(parent_id),
                 ) => Some(parent_id.clone()),
-                DocumentMutation::UpdateObject(prop_key, _) => Some(prop_key.0),
-                DocumentMutation::DeleteObject(object_id) => Some(
+                DocumentMutation::UpdateObject(PropKey(object_id, PropKind::Index), _)
+                | DocumentMutation::DeleteObject(object_id) => Some(
                     self.readable()
                         .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
                         .unwrap()
                         .clone(),
                 ),
+                DocumentMutation::UpdateObject(prop_key, _) => Some(prop_key.0),
                 _ => None,
             })
             .collect()

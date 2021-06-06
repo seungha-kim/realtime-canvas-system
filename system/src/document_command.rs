@@ -26,6 +26,10 @@ pub enum DocumentCommand {
     DeleteObject {
         id: uuid::Uuid,
     },
+    UpdateIndex {
+        id: uuid::Uuid,
+        int_index: usize,
+    },
     // TODO
     Undo,
     Redo,
