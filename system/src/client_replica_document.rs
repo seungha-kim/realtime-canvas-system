@@ -33,8 +33,7 @@ impl ClientReplicaDocument {
 
     pub fn handle_command(&mut self, command: DocumentCommand) -> Result<TransactionResult, ()> {
         log::debug!("Handle document command: {:?}", command);
-        let tx = self.convert_command_to_tx(command);
-        // TODO: Err
+        let tx = self.convert_command_to_tx(command)?;
         self.storage.begin(tx.clone()).unwrap();
         Ok(TransactionResult {
             invalidated_object_ids: self.invalidated_object_ids(&tx),
@@ -78,13 +77,13 @@ impl ClientReplicaDocument {
         }
     }
 
-    fn convert_command_to_tx(&self, command: DocumentCommand) -> Transaction {
+    fn convert_command_to_tx(&self, command: DocumentCommand) -> Result<Transaction, ()> {
         match command {
             DocumentCommand::UpdateDocumentName { name } => {
-                Transaction::new(vec![DocumentMutation::UpdateObject(
+                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
                     PropKey(self.storage.document_id(), PropKind::Name),
                     PropValue::String(name),
-                )])
+                )]))
             }
             DocumentCommand::CreateOval {
                 pos,
@@ -107,7 +106,7 @@ impl ClientReplicaDocument {
                     .map(|last_index| Base95::avg_with_one(&last_index))
                     .unwrap_or(Base95::mid());
 
-                Transaction::new(vec![
+                Ok(Transaction::new(vec![
                     DocumentMutation::CreateObject(id, ObjectKind::Oval),
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::Parent),
@@ -137,15 +136,15 @@ impl ClientReplicaDocument {
                         PropKey(id, PropKind::FillColor),
                         PropValue::Color(fill_color),
                     ),
-                ])
+                ]))
             }
             DocumentCommand::UpdateName { id, name } => {
-                Transaction::new(vec![DocumentMutation::UpdateObject(
+                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
                     PropKey(id, PropKind::Name),
                     PropValue::String(name),
-                )])
+                )]))
             }
-            DocumentCommand::UpdatePosition { id, pos } => Transaction::new(vec![
+            DocumentCommand::UpdatePosition { id, pos } => Ok(Transaction::new(vec![
                 DocumentMutation::UpdateObject(
                     PropKey(id, PropKind::PosX),
                     PropValue::Float(pos.x),
@@ -154,32 +153,36 @@ impl ClientReplicaDocument {
                     PropKey(id, PropKind::PosY),
                     PropValue::Float(pos.y),
                 ),
-            ]),
+            ])),
             DocumentCommand::DeleteObject { id } => {
-                Transaction::new(vec![DocumentMutation::DeleteObject(id)])
+                Ok(Transaction::new(vec![DocumentMutation::DeleteObject(id)]))
             }
             DocumentCommand::UpdateIndex { id, int_index } => {
-                // TODO: int_index 가 범위를 벗어날 때에 대한 처리 - 메소드가 Result 를 반환해야 함
                 let new_index_str = self
                     .storage
                     .get_id_prop(&PropKey(id, PropKind::Parent))
-                    .map(|parent_id| {
+                    .ok_or(())
+                    .and_then(|parent_id| {
                         let indices = self.storage.get_children_indices(&parent_id);
-                        if int_index == 0 {
-                            Base95::avg_with_zero(&indices[0].1)
+                        if int_index > indices.len() {
+                            Err(())
+                        } else if int_index == 0 {
+                            Ok(Base95::avg_with_zero(&indices[0].1))
                         } else if int_index == indices.len() {
-                            Base95::avg_with_one(&indices[indices.len() - 1].1)
+                            Ok(Base95::avg_with_one(&indices[indices.len() - 1].1))
                         } else {
-                            Base95::avg(&indices[int_index - 1].1, &indices[int_index].1)
+                            Ok(Base95::avg(
+                                &indices[int_index - 1].1,
+                                &indices[int_index].1,
+                            ))
                         }
                     })
-                    .map(|new_index| new_index.to_string())
-                    .unwrap(); // TODO: unwrap
+                    .map(|new_index| new_index.to_string())?;
 
-                Transaction::new(vec![DocumentMutation::UpdateObject(
+                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
                     PropKey(id, PropKind::Index),
                     PropValue::String(new_index_str),
-                )])
+                )]))
             }
             _ => unimplemented!(),
         }
