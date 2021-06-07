@@ -9,11 +9,11 @@ use super::message::*;
 use base95::Base95;
 use std::str::FromStr;
 
-pub struct ClientReplicaDocument {
+pub struct ClientFollowerDocument {
     storage: TransactionalStorage,
 }
 
-impl Materialize<TransactionalStorage> for ClientReplicaDocument {
+impl Materialize<TransactionalStorage> for ClientFollowerDocument {
     fn readable(&self) -> &TransactionalStorage {
         &self.storage
     }
@@ -24,10 +24,10 @@ pub struct TransactionResult {
     pub transaction: Transaction,
 }
 
-impl ClientReplicaDocument {
+impl ClientFollowerDocument {
     pub fn new(snapshot: DocumentSnapshot) -> Self {
         let storage = TransactionalStorage::from_snapshot(snapshot);
-        log::debug!("ClientReplicaDocument created: {}", storage.document_id());
+        log::debug!("ClientFollowerDocument created: {}", storage.document_id());
         Self { storage }
     }
 

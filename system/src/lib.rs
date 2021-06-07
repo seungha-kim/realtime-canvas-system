@@ -1,4 +1,4 @@
-mod client_replica_document;
+mod client_follower_document;
 pub mod document_command;
 mod document_storage;
 pub mod materialize;
@@ -8,7 +8,7 @@ mod traits;
 mod transaction_manager;
 mod transactional_storage;
 
-pub use client_replica_document::*;
+pub use client_follower_document::*;
 pub use document_command::*;
 pub use document_storage::*;
 pub use materialize::*;

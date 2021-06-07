@@ -1,13 +1,13 @@
 use system::euclid::default::Point2D;
 use system::{
-    ClientReplicaDocument, DocumentCommand, DocumentMutation, DocumentReadable, Materialize,
+    ClientFollowerDocument, DocumentCommand, DocumentMutation, DocumentReadable, Materialize,
     ServerLeaderDocument,
 };
 
 #[test]
 fn it_should_materialize_oval() {
     let mut server = ServerLeaderDocument::new();
-    let mut client = ClientReplicaDocument::new(server.snapshot());
+    let mut client = ClientFollowerDocument::new(server.snapshot());
 
     let tx_result = client
         .handle_command(DocumentCommand::CreateOval {

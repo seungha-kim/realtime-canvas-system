@@ -2,14 +2,14 @@ use wasm_bindgen::__rt::std::collections::HashSet;
 
 use std::collections::VecDeque;
 use system::{
-    serde_json, ClientReplicaDocument, DocumentCommand, DocumentSnapshot, LivePointerEvent,
+    serde_json, ClientFollowerDocument, DocumentCommand, DocumentSnapshot, LivePointerEvent,
     Materialize, ObjectId, SessionEvent, SessionId, SessionSnapshot, Transaction,
 };
 
 pub struct SessionState {
     session_snapshot: SessionSnapshot,
     session_snapshot_invalidated: bool,
-    document: ClientReplicaDocument,
+    document: ClientFollowerDocument,
     invalidated_object_ids: HashSet<ObjectId>,
     pending_live_pointer_events: VecDeque<LivePointerEvent>,
 }
@@ -21,7 +21,7 @@ impl SessionState {
         session_snapshot: SessionSnapshot,
     ) -> Self {
         Self {
-            document: ClientReplicaDocument::new(document_snapshot),
+            document: ClientFollowerDocument::new(document_snapshot),
             session_snapshot,
             session_snapshot_invalidated: true,
             invalidated_object_ids: HashSet::new(),
