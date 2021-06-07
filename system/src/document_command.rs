@@ -13,6 +13,11 @@ pub enum DocumentCommand {
         r_v: f32,
         fill_color: Color,
     },
+    CreateFrame {
+        pos: Point2D<f32>,
+        w: f32,
+        h: f32,
+    },
     UpdatePosition {
         id: uuid::Uuid,
         pos: Point2D<f32>,

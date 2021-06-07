@@ -14,6 +14,7 @@ pub struct DocumentMaterial {
 pub enum ObjectMaterial {
     Document(DocumentMaterial),
     Oval(OvalMaterial),
+    Frame(FrameMaterial),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -25,6 +26,17 @@ pub struct OvalMaterial {
     r_h: f32,
     r_v: f32,
     fill_color: Color,
+    index: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FrameMaterial {
+    id: ObjectId,
+    name: String,
+    pos_x: f32,
+    pos_y: f32,
+    w: f32,
+    h: f32,
     index: String,
 }
 
@@ -91,13 +103,50 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
             .ok_or(())
     }
 
+    fn materialize_frame(&self, object_id: &ObjectId) -> Result<FrameMaterial, ()> {
+        let readable = self.readable();
+        readable
+            .get_object_kind(object_id)
+            .filter(|k| k == &&ObjectKind::Frame)
+            .map(|_| FrameMaterial {
+                id: object_id.clone(),
+                name: readable
+                    .get_string_prop(&PropKey(object_id.clone(), PropKind::Name))
+                    .unwrap_or("Untitled")
+                    .into(),
+                pos_x: readable
+                    .get_float_prop(&PropKey(object_id.clone(), PropKind::PosX))
+                    .cloned()
+                    .unwrap_or(0.0),
+                pos_y: readable
+                    .get_float_prop(&PropKey(object_id.clone(), PropKind::PosY))
+                    .cloned()
+                    .unwrap_or(0.0),
+                w: readable
+                    .get_float_prop(&PropKey(object_id.clone(), PropKind::Width))
+                    .cloned()
+                    .unwrap_or(10.0),
+                h: readable
+                    .get_float_prop(&PropKey(object_id.clone(), PropKind::Height))
+                    .cloned()
+                    .unwrap_or(10.0),
+                index: readable
+                    .get_string_prop(&PropKey(object_id.clone(), PropKind::Index))
+                    .unwrap_or("?")
+                    .into(),
+            })
+            .ok_or(())
+    }
+
     fn materialize_object(&self, object_id: &ObjectId) -> Result<ObjectMaterial, ()> {
         match self.readable().get_object_kind(object_id).unwrap() {
             ObjectKind::Document => Ok(ObjectMaterial::Document(self.materialize_document())),
             ObjectKind::Oval => Ok(ObjectMaterial::Oval(
                 self.materialize_oval(object_id).unwrap(),
             )),
-            _ => Err(()),
+            ObjectKind::Frame => Ok(ObjectMaterial::Frame(
+                self.materialize_frame(object_id).unwrap(),
+            )),
         }
     }
 }

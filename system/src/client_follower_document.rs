@@ -92,6 +92,7 @@ impl ClientFollowerDocument {
                 fill_color,
             } => {
                 let id = uuid::Uuid::new_v4();
+                // TODO: parent_id 입력 받기
                 let parent_id = self.readable().document_id();
                 let index = self.create_last_index_of_parent(&parent_id);
 
@@ -124,6 +125,77 @@ impl ClientFollowerDocument {
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::FillColor),
                         PropValue::Color(fill_color),
+                    ),
+                ]))
+            }
+            DocumentCommand::CreateFrame { pos, h, w } => {
+                let id = uuid::Uuid::new_v4();
+                // TODO: parent_id 입력 받기
+                let parent_id = self.readable().document_id();
+                let index = self.create_last_index_of_parent(&parent_id);
+
+                // FIXME: 테스트용 oval
+                let oval_id = uuid::Uuid::new_v4();
+
+                Ok(Transaction::new(vec![
+                    DocumentMutation::CreateObject(id, ObjectKind::Frame),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Parent),
+                        PropValue::Reference(parent_id),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Index),
+                        PropValue::String(index.to_string()),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::PosX),
+                        PropValue::Float(pos.x),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::PosY),
+                        PropValue::Float(pos.y),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Width),
+                        PropValue::Float(w),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Height),
+                        PropValue::Float(h),
+                    ),
+                    // FIXME: 테스트용 Oval
+                    DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
+                    DocumentMutation::UpdateObject(
+                        PropKey(oval_id, PropKind::Parent),
+                        PropValue::Reference(id),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(oval_id, PropKind::Index),
+                        PropValue::String(index.to_string()),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(oval_id, PropKind::PosX),
+                        PropValue::Float(0.0),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(oval_id, PropKind::PosY),
+                        PropValue::Float(0.0),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(oval_id, PropKind::RadiusH),
+                        PropValue::Float(30.0),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(oval_id, PropKind::RadiusV),
+                        PropValue::Float(30.0),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(oval_id, PropKind::FillColor),
+                        PropValue::Color(Color {
+                            r: 50,
+                            g: 50,
+                            b: 50,
+                        }),
                     ),
                 ]))
             }

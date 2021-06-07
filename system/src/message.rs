@@ -136,6 +136,8 @@ pub enum PropKind {
     Name,
     PosX,
     PosY,
+    Width,
+    Height,
     RadiusH,
     RadiusV,
     Index,
