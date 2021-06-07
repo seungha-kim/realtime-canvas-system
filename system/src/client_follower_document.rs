@@ -93,18 +93,7 @@ impl ClientFollowerDocument {
             } => {
                 let id = uuid::Uuid::new_v4();
                 let parent_id = self.readable().document_id();
-                let children = self.storage.get_children_indices(&parent_id);
-
-                let index = children
-                    .last()
-                    .and_then(|(last_child_id, _)| {
-                        self.storage
-                            .get_string_prop(&PropKey(last_child_id.clone(), PropKind::Index))
-                    })
-                    // TODO: Base95::from_str 실패하는 경우에 대한 처리
-                    .and_then(|last_index_str| Base95::from_str(last_index_str).ok())
-                    .map(|last_index| Base95::avg_with_one(&last_index))
-                    .unwrap_or(Base95::mid());
+                let index = self.create_last_index_of_parent(&parent_id);
 
                 Ok(Transaction::new(vec![
                     DocumentMutation::CreateObject(id, ObjectKind::Oval),
@@ -207,5 +196,20 @@ impl ClientFollowerDocument {
                 _ => None,
             })
             .collect()
+    }
+
+    fn create_last_index_of_parent(&self, parent_id: &ObjectId) -> Base95 {
+        let children = self.storage.get_children_indices(&parent_id);
+
+        children
+            .last()
+            .and_then(|(last_child_id, _)| {
+                self.storage
+                    .get_string_prop(&PropKey(last_child_id.clone(), PropKind::Index))
+            })
+            // TODO: Base95::from_str 실패하는 경우에 대한 처리
+            .and_then(|last_index_str| Base95::from_str(last_index_str).ok())
+            .map(|last_index| Base95::avg_with_one(&last_index))
+            .unwrap_or(Base95::mid())
     }
 }
