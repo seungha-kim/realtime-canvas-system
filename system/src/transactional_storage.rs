@@ -18,6 +18,10 @@ impl TransactionalStorage {
         }
     }
 
+    pub fn readable_pre_tx(&self) -> &impl PropReadable {
+        &self.doc_storage
+    }
+
     pub fn from_snapshot(snapshot: DocumentSnapshot) -> Self {
         Self {
             doc_storage: (&snapshot).into(),

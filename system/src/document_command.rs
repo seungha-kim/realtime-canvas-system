@@ -37,6 +37,10 @@ pub enum DocumentCommand {
         id: uuid::Uuid,
         int_index: usize,
     },
+    UpdateParent {
+        id: uuid::Uuid,
+        parent_id: uuid::Uuid,
+    },
     // TODO
     Undo,
     Redo,

@@ -245,29 +245,49 @@ impl ClientFollowerDocument {
                     PropValue::String(new_index_str),
                 )]))
             }
+            DocumentCommand::UpdateParent { id, parent_id } => {
+                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
+                    PropKey(id, PropKind::Parent),
+                    PropValue::Reference(parent_id),
+                )]))
+            }
             _ => unimplemented!(),
         }
     }
 
     fn invalidated_object_ids(&self, tx: &Transaction) -> HashSet<ObjectId> {
-        tx.items
-            .iter()
-            .filter_map(|m| match m {
+        let mut result = HashSet::new();
+        for m in &tx.items {
+            match m {
                 DocumentMutation::UpdateObject(
-                    PropKey(_, PropKind::Parent),
+                    PropKey(object_id, PropKind::Parent),
                     PropValue::Reference(parent_id),
-                ) => Some(parent_id.clone()),
+                ) => {
+                    if let Some(prev_parent_id) = self
+                        .storage
+                        .readable_pre_tx()
+                        .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
+                    {
+                        result.insert(prev_parent_id.clone());
+                    }
+                    result.insert(parent_id.clone());
+                }
                 DocumentMutation::UpdateObject(PropKey(object_id, PropKind::Index), _)
-                | DocumentMutation::DeleteObject(object_id) => Some(
-                    self.readable()
+                | DocumentMutation::DeleteObject(object_id) => {
+                    let parent_id = self
+                        .readable()
                         .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
                         .unwrap()
-                        .clone(),
-                ),
-                DocumentMutation::UpdateObject(prop_key, _) => Some(prop_key.0),
-                _ => None,
-            })
-            .collect()
+                        .clone();
+                    result.insert(parent_id);
+                }
+                DocumentMutation::UpdateObject(prop_key, _) => {
+                    result.insert(prop_key.0);
+                }
+                _ => {}
+            }
+        }
+        result
     }
 
     fn create_last_index_of_parent(&self, parent_id: &ObjectId) -> Base95 {
