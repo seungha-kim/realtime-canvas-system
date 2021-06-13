@@ -38,6 +38,7 @@ pub struct FrameMaterial {
     w: f32,
     h: f32,
     index: String,
+    children: Vec<ObjectId>,
 }
 
 pub trait Materialize<R: PropReadable + DocumentReadable> {
@@ -134,6 +135,11 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
                     .get_string_prop(&PropKey(object_id.clone(), PropKind::Index))
                     .unwrap_or("?")
                     .into(),
+                children: readable
+                    .get_children_indices(&object_id)
+                    .iter()
+                    .map(|(object_id, _)| object_id.clone())
+                    .collect(),
             })
             .ok_or(())
     }
