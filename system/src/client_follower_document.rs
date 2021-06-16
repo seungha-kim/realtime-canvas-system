@@ -171,7 +171,7 @@ impl ClientFollowerDocument {
                     ),
                     DocumentMutation::UpdateObject(
                         PropKey(oval_id, PropKind::Index),
-                        PropValue::String(index.to_string()),
+                        PropValue::String(Base95::mid().to_string()),
                     ),
                     DocumentMutation::UpdateObject(
                         PropKey(oval_id, PropKind::PosX),
@@ -246,10 +246,18 @@ impl ClientFollowerDocument {
                 )]))
             }
             DocumentCommand::UpdateParent { id, parent_id } => {
-                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
-                    PropKey(id, PropKind::Parent),
-                    PropValue::Reference(parent_id),
-                )]))
+                let index = self.create_last_index_of_parent(&parent_id);
+
+                Ok(Transaction::new(vec![
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Parent),
+                        PropValue::Reference(parent_id),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::Index),
+                        PropValue::String(index.to_string()),
+                    ),
+                ]))
             }
             _ => unimplemented!(),
         }
