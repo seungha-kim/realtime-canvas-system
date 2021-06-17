@@ -1,6 +1,7 @@
 use crate::document_storage::DocumentSnapshot;
 use crate::{Color, ObjectId, ObjectKind, PropKey, PropKind};
 use base95::Base95;
+use euclid::default::Transform2D;
 use std::collections::HashSet;
 use std::str::FromStr;
 
@@ -12,6 +13,33 @@ pub trait PropReadable {
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind>;
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool>;
+
+    // transform = from inner space point to outer space point..?
+    fn get_global_transform(&self, object_id: &ObjectId) -> Transform2D<f32> {
+        let mut result = Transform2D::identity();
+        let mut current_object_id_opt = Some(object_id);
+        loop {
+            if let Some(current_object_id) = current_object_id_opt {
+                let local_transform = self.get_local_transform(current_object_id);
+                result = result.then(&local_transform);
+                current_object_id_opt =
+                    self.get_id_prop(&PropKey(current_object_id.clone(), PropKind::Parent));
+            } else {
+                break result;
+            }
+        }
+    }
+
+    fn get_local_transform(&self, object_id: &ObjectId) -> Transform2D<f32> {
+        let pos_x = self
+            .get_float_prop(&PropKey(object_id.clone(), PropKind::PosX))
+            .unwrap_or(&0.0);
+        let pos_y = self
+            .get_float_prop(&PropKey(object_id.clone(), PropKind::PosY))
+            .unwrap_or(&0.0);
+        // TODO: scale, rotation, ...
+        Transform2D::translation(*pos_x, *pos_y)
+    }
 
     /// 저장소가 가지고 있는 ObjectId 들을 반환. 중복될 수 있음 - 추후 최적화 시 삭제 예정 (static dispatch)
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_>;

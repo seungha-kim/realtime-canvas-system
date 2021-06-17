@@ -7,6 +7,7 @@ use crate::{DocumentCommand, DocumentSnapshot, PropReadable};
 
 use super::message::*;
 use base95::Base95;
+use euclid::default::Transform2D;
 use std::str::FromStr;
 
 pub struct ClientFollowerDocument {
@@ -248,6 +249,15 @@ impl ClientFollowerDocument {
             DocumentCommand::UpdateParent { id, parent_id } => {
                 let index = self.create_last_index_of_parent(&parent_id);
 
+                let current_global_transform = self.readable().get_global_transform(&id);
+                let target_parent_global_transform =
+                    self.readable().get_global_transform(&parent_id);
+                let new_local_transform = current_global_transform.then(
+                    &target_parent_global_transform
+                        .inverse()
+                        .unwrap_or(Transform2D::identity()),
+                );
+
                 Ok(Transaction::new(vec![
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::Parent),
@@ -256,6 +266,14 @@ impl ClientFollowerDocument {
                     DocumentMutation::UpdateObject(
                         PropKey(id, PropKind::Index),
                         PropValue::String(index.to_string()),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::PosX),
+                        PropValue::Float(new_local_transform.m31),
+                    ),
+                    DocumentMutation::UpdateObject(
+                        PropKey(id, PropKind::PosY),
+                        PropValue::Float(new_local_transform.m32),
                     ),
                 ]))
             }
@@ -311,5 +329,88 @@ impl ClientFollowerDocument {
             .and_then(|last_index_str| Base95::from_str(last_index_str).ok())
             .map(|last_index| Base95::avg_with_one(&last_index))
             .unwrap_or(Base95::mid())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::DocumentStorage;
+
+    #[test]
+    fn it_should_preserve_global_transform_when_changing_parent() {
+        let mut doc_storage = DocumentStorage::new();
+
+        let document_id = doc_storage.document_id();
+        let frame_id = uuid::Uuid::new_v4();
+        let oval_id = uuid::Uuid::new_v4();
+
+        doc_storage
+            .process(Transaction::new(vec![
+                // frame
+                DocumentMutation::CreateObject(frame_id, ObjectKind::Frame),
+                DocumentMutation::UpdateObject(
+                    PropKey(frame_id, PropKind::PosX),
+                    PropValue::Float(10.0),
+                ),
+                DocumentMutation::UpdateObject(
+                    PropKey(frame_id, PropKind::PosY),
+                    PropValue::Float(20.0),
+                ),
+                DocumentMutation::UpdateObject(
+                    PropKey(frame_id, PropKind::Parent),
+                    PropValue::Reference(document_id),
+                ),
+                // oval
+                DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
+                DocumentMutation::UpdateObject(
+                    PropKey(oval_id, PropKind::PosX),
+                    PropValue::Float(100.0),
+                ),
+                DocumentMutation::UpdateObject(
+                    PropKey(oval_id, PropKind::PosY),
+                    PropValue::Float(100.0),
+                ),
+                DocumentMutation::UpdateObject(
+                    PropKey(oval_id, PropKind::Parent),
+                    PropValue::Reference(document_id),
+                ),
+            ]))
+            .unwrap();
+        let snapshot = DocumentSnapshot::from(&doc_storage);
+        let doc = ClientFollowerDocument::new(snapshot);
+
+        let tx = doc
+            .convert_command_to_tx(DocumentCommand::UpdateParent {
+                id: oval_id,
+                parent_id: frame_id,
+            })
+            .unwrap();
+
+        let pos_x_after = tx
+            .items
+            .iter()
+            .find_map(|m| match m {
+                DocumentMutation::UpdateObject(
+                    PropKey(object_id, PropKind::PosX),
+                    PropValue::Float(pos_x),
+                ) if object_id == &oval_id => Some(pos_x.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(pos_x_after, 90.0);
+
+        let pos_y_after = tx
+            .items
+            .iter()
+            .find_map(|m| match m {
+                DocumentMutation::UpdateObject(
+                    PropKey(object_id, PropKind::PosY),
+                    PropValue::Float(pos_y),
+                ) if object_id == &oval_id => Some(pos_y.clone()),
+                _ => None,
+            })
+            .unwrap();
+        assert_eq!(pos_y_after, 80.0);
     }
 }
