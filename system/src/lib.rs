@@ -1,5 +1,6 @@
 mod client_follower_document;
 pub mod document_command;
+mod document_command_transaction;
 mod document_storage;
 pub mod materialize;
 mod message;
