@@ -83,6 +83,13 @@ impl DocumentStorage {
                 }
                 Ok(())
             }
+            DocumentMutation::DeleteProp(prop_key) => {
+                self.string_props.remove(prop_key);
+                self.float_props.remove(prop_key);
+                self.reference_props.remove(prop_key);
+                self.color_props.remove(prop_key);
+                Ok(())
+            }
         }
     }
 }

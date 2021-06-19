@@ -105,6 +105,7 @@ pub enum DocumentMutation {
     CreateObject(ObjectId, ObjectKind),
     DeleteObject(ObjectId),
     UpsertProp(PropKey, PropValue),
+    DeleteProp(PropKey),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
