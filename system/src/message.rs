@@ -104,8 +104,7 @@ pub enum SessionError {
 pub enum DocumentMutation {
     CreateObject(ObjectId, ObjectKind),
     DeleteObject(ObjectId),
-    UpsertProp(PropKey, PropValue),
-    DeleteProp(PropKey),
+    UpsertProp(PropKey, Option<PropValue>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

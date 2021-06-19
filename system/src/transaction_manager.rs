@@ -45,7 +45,7 @@ impl TransactionManager {
 impl PropReadable for TransactionManager {
     fn get_string_prop(&self, target_key: &PropKey) -> Option<&str> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, PropValue::String(v))
+            DocumentMutation::UpsertProp(prop_key, Some(PropValue::String(v)))
                 if prop_key == target_key =>
             {
                 Some(v.as_str())
@@ -56,7 +56,7 @@ impl PropReadable for TransactionManager {
 
     fn get_id_prop(&self, target_key: &PropKey) -> Option<&ObjectId> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, PropValue::Reference(v))
+            DocumentMutation::UpsertProp(prop_key, Some(PropValue::Reference(v)))
                 if prop_key == target_key =>
             {
                 Some(v)
@@ -67,7 +67,7 @@ impl PropReadable for TransactionManager {
 
     fn get_float_prop(&self, target_key: &PropKey) -> Option<&f32> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, PropValue::Float(v))
+            DocumentMutation::UpsertProp(prop_key, Some(PropValue::Float(v)))
                 if prop_key == target_key =>
             {
                 Some(v)
@@ -78,7 +78,7 @@ impl PropReadable for TransactionManager {
 
     fn get_color_prop(&self, target_key: &PropKey) -> Option<&Color> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, PropValue::Color(v))
+            DocumentMutation::UpsertProp(prop_key, Some(PropValue::Color(v)))
                 if prop_key == target_key =>
             {
                 Some(v)
@@ -140,7 +140,7 @@ mod tests {
             id: uuid::Uuid::new_v4(),
             items: vec![DocumentMutation::UpsertProp(
                 PropKey(object_id, PropKind::Name),
-                PropValue::String("world".into()),
+                Some(PropValue::String("world".into())),
             )],
         });
 
@@ -173,7 +173,7 @@ mod tests {
             id: tx_id,
             items: vec![DocumentMutation::UpsertProp(
                 PropKey(object_id, PropKind::Name),
-                PropValue::String("world".into()),
+                Some(PropValue::String("world".into())),
             )],
         });
 
@@ -182,7 +182,7 @@ mod tests {
             id: tx_id,
             items: vec![DocumentMutation::UpsertProp(
                 PropKey(object_id, PropKind::Name),
-                PropValue::String("world".into()),
+                Some(PropValue::String("world".into())),
             )],
         });
     }

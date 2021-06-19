@@ -62,17 +62,23 @@ impl DocumentStorage {
             }
             DocumentMutation::UpsertProp(prop_key, prop_value) => {
                 match prop_value {
-                    PropValue::String(v) => {
+                    Some(PropValue::String(v)) => {
                         self.string_props.insert(prop_key.clone(), v.clone());
                     }
-                    PropValue::Float(v) => {
+                    Some(PropValue::Float(v)) => {
                         self.float_props.insert(prop_key.clone(), v.clone());
                     }
-                    PropValue::Reference(id) => {
+                    Some(PropValue::Reference(id)) => {
                         self.reference_props.insert(prop_key.clone(), id.clone());
                     }
-                    PropValue::Color(color) => {
+                    Some(PropValue::Color(color)) => {
                         self.color_props.insert(prop_key.clone(), color.clone());
+                    }
+                    None => {
+                        self.string_props.remove(prop_key);
+                        self.float_props.remove(prop_key);
+                        self.reference_props.remove(prop_key);
+                        self.color_props.remove(prop_key);
                     }
                 }
                 Ok(())
@@ -81,13 +87,6 @@ impl DocumentStorage {
                 if self.objects.contains_key(object_id) {
                     self.deleted_objects.insert(object_id.clone());
                 }
-                Ok(())
-            }
-            DocumentMutation::DeleteProp(prop_key) => {
-                self.string_props.remove(prop_key);
-                self.float_props.remove(prop_key);
-                self.reference_props.remove(prop_key);
-                self.color_props.remove(prop_key);
                 Ok(())
             }
         }

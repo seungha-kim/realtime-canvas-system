@@ -14,7 +14,7 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
         DocumentCommand::UpdateDocumentName { name } => {
             Ok(Transaction::new(vec![DocumentMutation::UpsertProp(
                 PropKey(readable.document_id(), PropKind::Name),
-                PropValue::String(name),
+                Some(PropValue::String(name)),
             )]))
         }
         DocumentCommand::CreateOval {
@@ -32,19 +32,31 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
                 DocumentMutation::CreateObject(id, ObjectKind::Oval),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Parent),
-                    PropValue::Reference(parent_id),
+                    Some(PropValue::Reference(parent_id)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Index),
-                    PropValue::String(index.to_string()),
+                    Some(PropValue::String(index.to_string())),
                 ),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::PosX), PropValue::Float(pos.x)),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::PosY), PropValue::Float(pos.y)),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::RadiusH), PropValue::Float(r_h)),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::RadiusV), PropValue::Float(r_v)),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::PosX),
+                    Some(PropValue::Float(pos.x)),
+                ),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::PosY),
+                    Some(PropValue::Float(pos.y)),
+                ),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::RadiusH),
+                    Some(PropValue::Float(r_h)),
+                ),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::RadiusV),
+                    Some(PropValue::Float(r_v)),
+                ),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::FillColor),
-                    PropValue::Color(fill_color),
+                    Some(PropValue::Color(fill_color)),
                 ),
             ]))
         }
@@ -61,61 +73,79 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
                 DocumentMutation::CreateObject(id, ObjectKind::Frame),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Parent),
-                    PropValue::Reference(parent_id),
+                    Some(PropValue::Reference(parent_id)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Index),
-                    PropValue::String(index.to_string()),
+                    Some(PropValue::String(index.to_string())),
                 ),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::PosX), PropValue::Float(pos.x)),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::PosY), PropValue::Float(pos.y)),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::Width), PropValue::Float(w)),
-                DocumentMutation::UpsertProp(PropKey(id, PropKind::Height), PropValue::Float(h)),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::PosX),
+                    Some(PropValue::Float(pos.x)),
+                ),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::PosY),
+                    Some(PropValue::Float(pos.y)),
+                ),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::Width),
+                    Some(PropValue::Float(w)),
+                ),
+                DocumentMutation::UpsertProp(
+                    PropKey(id, PropKind::Height),
+                    Some(PropValue::Float(h)),
+                ),
                 // FIXME: 테스트용 Oval
                 DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::Parent),
-                    PropValue::Reference(id),
+                    Some(PropValue::Reference(id)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::Index),
-                    PropValue::String(Base95::mid().to_string()),
+                    Some(PropValue::String(Base95::mid().to_string())),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::PosX),
-                    PropValue::Float(0.0),
+                    Some(PropValue::Float(0.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::PosY),
-                    PropValue::Float(0.0),
+                    Some(PropValue::Float(0.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::RadiusH),
-                    PropValue::Float(30.0),
+                    Some(PropValue::Float(30.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::RadiusV),
-                    PropValue::Float(30.0),
+                    Some(PropValue::Float(30.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::FillColor),
-                    PropValue::Color(Color {
+                    Some(PropValue::Color(Color {
                         r: 50,
                         g: 50,
                         b: 50,
-                    }),
+                    })),
                 ),
             ]))
         }
         DocumentCommand::UpdateName { id, name } => {
             Ok(Transaction::new(vec![DocumentMutation::UpsertProp(
                 PropKey(id, PropKind::Name),
-                PropValue::String(name),
+                Some(PropValue::String(name)),
             )]))
         }
         DocumentCommand::UpdatePosition { id, pos } => Ok(Transaction::new(vec![
-            DocumentMutation::UpsertProp(PropKey(id, PropKind::PosX), PropValue::Float(pos.x)),
-            DocumentMutation::UpsertProp(PropKey(id, PropKind::PosY), PropValue::Float(pos.y)),
+            DocumentMutation::UpsertProp(
+                PropKey(id, PropKind::PosX),
+                Some(PropValue::Float(pos.x)),
+            ),
+            DocumentMutation::UpsertProp(
+                PropKey(id, PropKind::PosY),
+                Some(PropValue::Float(pos.y)),
+            ),
         ])),
         DocumentCommand::DeleteObject { id } => {
             Ok(Transaction::new(vec![DocumentMutation::DeleteObject(id)]))
@@ -143,7 +173,7 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
 
             Ok(Transaction::new(vec![DocumentMutation::UpsertProp(
                 PropKey(id, PropKind::Index),
-                PropValue::String(new_index_str),
+                Some(PropValue::String(new_index_str)),
             )]))
         }
         DocumentCommand::UpdateParent { id, parent_id } => {
@@ -160,19 +190,19 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
             Ok(Transaction::new(vec![
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Parent),
-                    PropValue::Reference(parent_id),
+                    Some(PropValue::Reference(parent_id)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Index),
-                    PropValue::String(index.to_string()),
+                    Some(PropValue::String(index.to_string())),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::PosX),
-                    PropValue::Float(new_local_transform.m31),
+                    Some(PropValue::Float(new_local_transform.m31)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::PosY),
-                    PropValue::Float(new_local_transform.m32),
+                    Some(PropValue::Float(new_local_transform.m32)),
                 ),
             ]))
         }

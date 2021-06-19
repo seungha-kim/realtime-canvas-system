@@ -80,7 +80,7 @@ impl ClientFollowerDocument {
             match m {
                 DocumentMutation::UpsertProp(
                     PropKey(object_id, PropKind::Parent),
-                    PropValue::Reference(parent_id),
+                    Some(PropValue::Reference(parent_id)),
                 ) => {
                     if let Some(prev_parent_id) = self
                         .storage
@@ -130,29 +130,29 @@ mod tests {
                 DocumentMutation::CreateObject(frame_id, ObjectKind::Frame),
                 DocumentMutation::UpsertProp(
                     PropKey(frame_id, PropKind::PosX),
-                    PropValue::Float(10.0),
+                    Some(PropValue::Float(10.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(frame_id, PropKind::PosY),
-                    PropValue::Float(20.0),
+                    Some(PropValue::Float(20.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(frame_id, PropKind::Parent),
-                    PropValue::Reference(document_id),
+                    Some(PropValue::Reference(document_id)),
                 ),
                 // oval
                 DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::PosX),
-                    PropValue::Float(100.0),
+                    Some(PropValue::Float(100.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::PosY),
-                    PropValue::Float(100.0),
+                    Some(PropValue::Float(100.0)),
                 ),
                 DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::Parent),
-                    PropValue::Reference(document_id),
+                    Some(PropValue::Reference(document_id)),
                 ),
             ]))
             .unwrap();
@@ -174,7 +174,7 @@ mod tests {
             .find_map(|m| match m {
                 DocumentMutation::UpsertProp(
                     PropKey(object_id, PropKind::PosX),
-                    PropValue::Float(pos_x),
+                    Some(PropValue::Float(pos_x)),
                 ) if object_id == &oval_id => Some(pos_x.clone()),
                 _ => None,
             })
@@ -187,7 +187,7 @@ mod tests {
             .find_map(|m| match m {
                 DocumentMutation::UpsertProp(
                     PropKey(object_id, PropKind::PosY),
-                    PropValue::Float(pos_y),
+                    Some(PropValue::Float(pos_y)),
                 ) if object_id == &oval_id => Some(pos_y.clone()),
                 _ => None,
             })
