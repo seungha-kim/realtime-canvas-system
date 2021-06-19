@@ -81,7 +81,7 @@ impl ClientFollowerDocument {
     fn convert_command_to_tx(&self, command: DocumentCommand) -> Result<Transaction, ()> {
         match command {
             DocumentCommand::UpdateDocumentName { name } => {
-                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
+                Ok(Transaction::new(vec![DocumentMutation::UpsertProp(
                     PropKey(self.storage.document_id(), PropKind::Name),
                     PropValue::String(name),
                 )]))
@@ -99,31 +99,31 @@ impl ClientFollowerDocument {
 
                 Ok(Transaction::new(vec![
                     DocumentMutation::CreateObject(id, ObjectKind::Oval),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::Parent),
                         PropValue::Reference(parent_id),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::Index),
                         PropValue::String(index.to_string()),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::PosX),
                         PropValue::Float(pos.x),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::PosY),
                         PropValue::Float(pos.y),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::RadiusH),
                         PropValue::Float(r_h),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::RadiusV),
                         PropValue::Float(r_v),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::FillColor),
                         PropValue::Color(fill_color),
                     ),
@@ -140,57 +140,54 @@ impl ClientFollowerDocument {
 
                 Ok(Transaction::new(vec![
                     DocumentMutation::CreateObject(id, ObjectKind::Frame),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::Parent),
                         PropValue::Reference(parent_id),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::Index),
                         PropValue::String(index.to_string()),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::PosX),
                         PropValue::Float(pos.x),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::PosY),
                         PropValue::Float(pos.y),
                     ),
-                    DocumentMutation::UpdateObject(
-                        PropKey(id, PropKind::Width),
-                        PropValue::Float(w),
-                    ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(PropKey(id, PropKind::Width), PropValue::Float(w)),
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::Height),
                         PropValue::Float(h),
                     ),
                     // FIXME: 테스트용 Oval
                     DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(oval_id, PropKind::Parent),
                         PropValue::Reference(id),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(oval_id, PropKind::Index),
                         PropValue::String(Base95::mid().to_string()),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(oval_id, PropKind::PosX),
                         PropValue::Float(0.0),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(oval_id, PropKind::PosY),
                         PropValue::Float(0.0),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(oval_id, PropKind::RadiusH),
                         PropValue::Float(30.0),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(oval_id, PropKind::RadiusV),
                         PropValue::Float(30.0),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(oval_id, PropKind::FillColor),
                         PropValue::Color(Color {
                             r: 50,
@@ -201,20 +198,14 @@ impl ClientFollowerDocument {
                 ]))
             }
             DocumentCommand::UpdateName { id, name } => {
-                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
+                Ok(Transaction::new(vec![DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Name),
                     PropValue::String(name),
                 )]))
             }
             DocumentCommand::UpdatePosition { id, pos } => Ok(Transaction::new(vec![
-                DocumentMutation::UpdateObject(
-                    PropKey(id, PropKind::PosX),
-                    PropValue::Float(pos.x),
-                ),
-                DocumentMutation::UpdateObject(
-                    PropKey(id, PropKind::PosY),
-                    PropValue::Float(pos.y),
-                ),
+                DocumentMutation::UpsertProp(PropKey(id, PropKind::PosX), PropValue::Float(pos.x)),
+                DocumentMutation::UpsertProp(PropKey(id, PropKind::PosY), PropValue::Float(pos.y)),
             ])),
             DocumentCommand::DeleteObject { id } => {
                 Ok(Transaction::new(vec![DocumentMutation::DeleteObject(id)]))
@@ -241,7 +232,7 @@ impl ClientFollowerDocument {
                     })
                     .map(|new_index| new_index.to_string())?;
 
-                Ok(Transaction::new(vec![DocumentMutation::UpdateObject(
+                Ok(Transaction::new(vec![DocumentMutation::UpsertProp(
                     PropKey(id, PropKind::Index),
                     PropValue::String(new_index_str),
                 )]))
@@ -259,19 +250,19 @@ impl ClientFollowerDocument {
                 );
 
                 Ok(Transaction::new(vec![
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::Parent),
                         PropValue::Reference(parent_id),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::Index),
                         PropValue::String(index.to_string()),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::PosX),
                         PropValue::Float(new_local_transform.m31),
                     ),
-                    DocumentMutation::UpdateObject(
+                    DocumentMutation::UpsertProp(
                         PropKey(id, PropKind::PosY),
                         PropValue::Float(new_local_transform.m32),
                     ),
@@ -285,7 +276,7 @@ impl ClientFollowerDocument {
         let mut result = HashSet::new();
         for m in &tx.items {
             match m {
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(object_id, PropKind::Parent),
                     PropValue::Reference(parent_id),
                 ) => {
@@ -298,7 +289,7 @@ impl ClientFollowerDocument {
                     }
                     result.insert(parent_id.clone());
                 }
-                DocumentMutation::UpdateObject(PropKey(object_id, PropKind::Index), _)
+                DocumentMutation::UpsertProp(PropKey(object_id, PropKind::Index), _)
                 | DocumentMutation::DeleteObject(object_id) => {
                     let parent_id = self
                         .readable()
@@ -307,7 +298,7 @@ impl ClientFollowerDocument {
                         .clone();
                     result.insert(parent_id);
                 }
-                DocumentMutation::UpdateObject(prop_key, _) => {
+                DocumentMutation::UpsertProp(prop_key, _) => {
                     result.insert(prop_key.0);
                 }
                 _ => {}
@@ -349,29 +340,29 @@ mod tests {
             .process(Transaction::new(vec![
                 // frame
                 DocumentMutation::CreateObject(frame_id, ObjectKind::Frame),
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(frame_id, PropKind::PosX),
                     PropValue::Float(10.0),
                 ),
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(frame_id, PropKind::PosY),
                     PropValue::Float(20.0),
                 ),
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(frame_id, PropKind::Parent),
                     PropValue::Reference(document_id),
                 ),
                 // oval
                 DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::PosX),
                     PropValue::Float(100.0),
                 ),
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::PosY),
                     PropValue::Float(100.0),
                 ),
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(oval_id, PropKind::Parent),
                     PropValue::Reference(document_id),
                 ),
@@ -391,7 +382,7 @@ mod tests {
             .items
             .iter()
             .find_map(|m| match m {
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(object_id, PropKind::PosX),
                     PropValue::Float(pos_x),
                 ) if object_id == &oval_id => Some(pos_x.clone()),
@@ -404,7 +395,7 @@ mod tests {
             .items
             .iter()
             .find_map(|m| match m {
-                DocumentMutation::UpdateObject(
+                DocumentMutation::UpsertProp(
                     PropKey(object_id, PropKind::PosY),
                     PropValue::Float(pos_y),
                 ) if object_id == &oval_id => Some(pos_y.clone()),

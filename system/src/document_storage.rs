@@ -60,7 +60,7 @@ impl DocumentStorage {
                 self.objects.insert(object_id.clone(), object_kind.clone());
                 Ok(())
             }
-            DocumentMutation::UpdateObject(prop_key, prop_value) => {
+            DocumentMutation::UpsertProp(prop_key, prop_value) => {
                 match prop_value {
                     PropValue::String(v) => {
                         self.string_props.insert(prop_key.clone(), v.clone());
