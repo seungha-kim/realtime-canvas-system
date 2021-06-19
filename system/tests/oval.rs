@@ -1,7 +1,7 @@
 use system::euclid::default::Point2D;
 use system::{
-    ClientFollowerDocument, DocumentCommand, DocumentMutation, DocumentReadable, Materialize,
-    ServerLeaderDocument,
+    ClientFollowerDocument, Color, DocumentCommand, DocumentMutation, DocumentReadable,
+    Materialize, ServerLeaderDocument,
 };
 
 #[test]
@@ -14,6 +14,11 @@ fn it_should_materialize_oval() {
             r_v: 20.0,
             r_h: 30.0,
             pos: Point2D::new(40.0, 50.0),
+            fill_color: Color {
+                r: 50,
+                g: 50,
+                b: 50,
+            },
         })
         .unwrap();
 
@@ -36,6 +41,11 @@ fn it_should_materialize_oval() {
             r_v: 20.0,
             r_h: 30.0,
             pos: Point2D::new(40.0, 50.0),
+            fill_color: Color {
+                r: 50,
+                g: 50,
+                b: 50,
+            },
         })
         .unwrap();
     server.process_transaction(tx_result.transaction).unwrap();
