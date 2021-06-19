@@ -73,6 +73,18 @@ impl SessionState {
         }
     }
 
+    pub fn undo(&mut self) -> Result<Transaction, ()> {
+        // TODO: Err
+        if let Ok(result) = self.document.undo() {
+            for invalidated_object_id in result.invalidated_object_ids {
+                self.invalidated_object_ids.insert(invalidated_object_id);
+            }
+            Ok(result.transaction)
+        } else {
+            Err(())
+        }
+    }
+
     pub fn consume_invalidated_object_ids(&mut self) -> String {
         log::trace!(
             "Objects being invalidated: {:?}",

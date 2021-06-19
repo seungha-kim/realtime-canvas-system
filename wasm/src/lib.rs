@@ -117,6 +117,17 @@ impl CanvasSystem {
             });
     }
 
+    pub fn undo(&mut self) {
+        self.session.as_mut().and_then(|s| s.undo().ok()).map(|tx| {
+            let command_id = self.new_command_id();
+            self.pending_identifiable_commands
+                .push_back(IdentifiableCommand {
+                    command_id,
+                    system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(tx)),
+                });
+        });
+    }
+
     pub fn consume_invalidated_object_ids(&mut self) -> String {
         self.session
             .as_mut()

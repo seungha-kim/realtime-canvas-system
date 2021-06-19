@@ -8,6 +8,7 @@ use std::collections::HashSet;
 
 pub struct ClientFollowerDocument {
     storage: TransactionalStorage,
+    undo_stack: Vec<Transaction>,
 }
 
 impl Materialize<TransactionalStorage> for ClientFollowerDocument {
@@ -25,12 +26,16 @@ impl ClientFollowerDocument {
     pub fn new(snapshot: DocumentSnapshot) -> Self {
         let storage = TransactionalStorage::from_snapshot(snapshot);
         log::debug!("ClientFollowerDocument created: {}", storage.document_id());
-        Self { storage }
+        Self {
+            storage,
+            undo_stack: Vec::new(),
+        }
     }
 
     pub fn handle_command(&mut self, command: DocumentCommand) -> Result<TransactionResult, ()> {
         log::debug!("Handle document command: {:?}", command);
         let tx = convert_command_to_tx(&self.storage, command)?;
+        self.undo_stack.push(tx.inverted(&self.storage));
         self.storage.begin(tx.clone()).unwrap();
         Ok(TransactionResult {
             invalidated_object_ids: self.invalidated_object_ids(&tx),
@@ -40,12 +45,17 @@ impl ClientFollowerDocument {
 
     pub fn handle_transaction(&mut self, tx: Transaction) -> Result<TransactionResult, ()> {
         log::info!("Handle others transaction: {:?}", tx);
+        let invalidated_before = self.invalidated_object_ids(&tx);
         // TODO: Err
         self.storage.begin(tx.clone()).unwrap();
         // TODO: Err
         self.storage.finish(&tx.id, true).unwrap();
         Ok(TransactionResult {
-            invalidated_object_ids: self.invalidated_object_ids(&tx),
+            invalidated_object_ids: self
+                .invalidated_object_ids(&tx)
+                .union(&invalidated_before)
+                .cloned()
+                .collect(),
             transaction: tx,
         })
     }
@@ -65,11 +75,25 @@ impl ClientFollowerDocument {
     pub fn handle_nack(&mut self, tx_id: &TransactionId) -> Result<TransactionResult, ()> {
         log::info!("Nack: {:?}", tx_id);
         if let Ok(tx) = self.storage.finish(tx_id, false) {
+            self.undo_stack.retain(|item| &item.id != tx_id);
             Ok(TransactionResult {
                 invalidated_object_ids: self.invalidated_object_ids(&tx),
                 transaction: tx,
             })
         } else {
+            Err(())
+        }
+    }
+
+    pub fn undo(&mut self) -> Result<TransactionResult, ()> {
+        if let Some(tx) = self.undo_stack.pop() {
+            self.storage.begin(tx.clone()).unwrap();
+            Ok(TransactionResult {
+                invalidated_object_ids: self.invalidated_object_ids(&tx),
+                transaction: tx,
+            })
+        } else {
+            // TODO: Err type
             Err(())
         }
     }
@@ -93,12 +117,20 @@ impl ClientFollowerDocument {
                 }
                 DocumentMutation::UpsertProp(PropKey(object_id, PropKind::Index), _)
                 | DocumentMutation::DeleteObject(object_id) => {
-                    let parent_id = self
+                    // TODO: 트랜잭션 적용 전/후 각각 invalidation 을 계산할 필요 있음
+                    if let Some(parent_id) = self
+                        .storage
+                        .readable_pre_tx()
+                        .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
+                    {
+                        result.insert(parent_id.clone());
+                    }
+                    if let Some(parent_id) = self
                         .readable()
                         .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
-                        .unwrap()
-                        .clone();
-                    result.insert(parent_id);
+                    {
+                        result.insert(parent_id.clone());
+                    }
                 }
                 DocumentMutation::UpsertProp(prop_key, _) => {
                     result.insert(prop_key.0);
@@ -107,6 +139,37 @@ impl ClientFollowerDocument {
             }
         }
         result
+    }
+}
+
+impl Transaction {
+    pub fn inverted<R: PropReadable + DocumentReadable>(&self, r: &R) -> Transaction {
+        let mut mutations = Vec::new();
+
+        for m in &self.items {
+            match m {
+                DocumentMutation::CreateObject(object_id, _) => {
+                    mutations.push(DocumentMutation::DeleteObject(object_id.clone()));
+                }
+                DocumentMutation::UpsertProp(prop_key, _) => {
+                    let prev_value = r.get_any_prop(prop_key);
+                    mutations.push(DocumentMutation::UpsertProp(prop_key.clone(), prev_value))
+                }
+                DocumentMutation::DeleteObject(object_id) => {
+                    let object_kind = r.get_object_kind(object_id).unwrap();
+                    mutations.push(DocumentMutation::CreateObject(
+                        object_id.clone(),
+                        object_kind.clone(),
+                    ))
+                }
+            }
+        }
+        mutations.reverse();
+
+        Self {
+            id: self.id,
+            items: mutations,
+        }
     }
 }
 

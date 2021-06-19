@@ -1,5 +1,5 @@
 use crate::document_storage::DocumentSnapshot;
-use crate::{Color, ObjectId, ObjectKind, PropKey, PropKind};
+use crate::{Color, ObjectId, ObjectKind, PropKey, PropKind, PropValue};
 use base95::Base95;
 use euclid::default::Transform2D;
 use std::collections::HashSet;
@@ -13,6 +13,20 @@ pub trait PropReadable {
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind>;
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool>;
+
+    fn get_any_prop(&self, key: &PropKey) -> Option<PropValue> {
+        if let Some(s) = self.get_string_prop(key) {
+            Some(PropValue::String(s.to_owned()))
+        } else if let Some(id) = self.get_id_prop(key) {
+            Some(PropValue::Reference(id.clone()))
+        } else if let Some(f) = self.get_float_prop(key) {
+            Some(PropValue::Float(f.clone()))
+        } else if let Some(c) = self.get_color_prop(key) {
+            Some(PropValue::Color(c.clone()))
+        } else {
+            None
+        }
+    }
 
     // transform = from inner space point to outer space point..?
     fn get_global_transform(&self, object_id: &ObjectId) -> Transform2D<f32> {

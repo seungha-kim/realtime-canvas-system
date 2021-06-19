@@ -41,7 +41,4 @@ pub enum DocumentCommand {
         id: uuid::Uuid,
         parent_id: uuid::Uuid,
     },
-    // TODO
-    Undo,
-    Redo,
 }
