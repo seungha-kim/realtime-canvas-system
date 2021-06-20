@@ -12,7 +12,7 @@ pub trait PropReadable {
 
     fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
         self.get_prop(object_id, prop_kind)
-            .and_then(|prop_value| prop_value.as_string())
+            .and_then(|prop_value| prop_value.as_str())
     }
     fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId> {
         self.get_prop(object_id, prop_kind)

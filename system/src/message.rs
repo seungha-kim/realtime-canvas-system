@@ -153,7 +153,7 @@ pub enum PropValue {
 }
 
 impl PropValue {
-    pub fn as_string(&self) -> Option<&str> {
+    pub fn as_str(&self) -> Option<&str> {
         match self {
             Self::String(s) => Some(s),
             _ => None,
