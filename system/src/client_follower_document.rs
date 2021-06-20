@@ -35,38 +35,40 @@ impl ClientFollowerDocument {
     pub fn handle_command(&mut self, command: DocumentCommand) -> Result<TransactionResult, ()> {
         log::debug!("Handle document command: {:?}", command);
         let tx = convert_command_to_tx(&self.storage, command)?;
+        let invalidated_object_ids = self.invalidated_object_ids(&tx);
         self.undo_stack.push(tx.inverted(&self.storage));
         self.storage.begin(tx.clone()).unwrap();
         Ok(TransactionResult {
-            invalidated_object_ids: self.invalidated_object_ids(&tx),
+            invalidated_object_ids,
             transaction: tx,
         })
     }
 
     pub fn handle_transaction(&mut self, tx: Transaction) -> Result<TransactionResult, ()> {
         log::info!("Handle others transaction: {:?}", tx);
-        let invalidated_before = self.invalidated_object_ids(&tx);
+        let invalidated_object_ids = self.invalidated_object_ids(&tx);
         // TODO: Err
         self.storage.begin(tx.clone()).unwrap();
         // TODO: Err
         self.storage.finish(&tx.id, true).unwrap();
         Ok(TransactionResult {
-            invalidated_object_ids: self
-                .invalidated_object_ids(&tx)
-                .union(&invalidated_before)
-                .cloned()
-                .collect(),
+            invalidated_object_ids,
             transaction: tx,
         })
     }
 
     pub fn handle_ack(&mut self, tx_id: &TransactionId) -> Result<TransactionResult, ()> {
         log::info!("Ack: {:?}", tx_id);
-        if let Ok(tx) = self.storage.finish(tx_id, true) {
-            Ok(TransactionResult {
-                invalidated_object_ids: self.invalidated_object_ids(&tx),
-                transaction: tx,
-            })
+        if let Some(tx) = self.storage.get_tx(tx_id) {
+            let invalidated_object_ids = self.invalidated_object_ids(&tx);
+            if let Ok(tx) = self.storage.finish(tx_id, true) {
+                Ok(TransactionResult {
+                    invalidated_object_ids,
+                    transaction: tx,
+                })
+            } else {
+                Err(())
+            }
         } else {
             Err(())
         }
@@ -74,12 +76,17 @@ impl ClientFollowerDocument {
 
     pub fn handle_nack(&mut self, tx_id: &TransactionId) -> Result<TransactionResult, ()> {
         log::info!("Nack: {:?}", tx_id);
-        if let Ok(tx) = self.storage.finish(tx_id, false) {
-            self.undo_stack.retain(|item| &item.id != tx_id);
-            Ok(TransactionResult {
-                invalidated_object_ids: self.invalidated_object_ids(&tx),
-                transaction: tx,
-            })
+        if let Some(tx) = self.storage.get_tx(tx_id) {
+            let invalidated_object_ids = self.invalidated_object_ids(&tx);
+            if let Ok(tx) = self.storage.finish(tx_id, false) {
+                self.undo_stack.retain(|item| &item.id != tx_id);
+                Ok(TransactionResult {
+                    invalidated_object_ids,
+                    transaction: tx,
+                })
+            } else {
+                Err(())
+            }
         } else {
             Err(())
         }
@@ -87,9 +94,10 @@ impl ClientFollowerDocument {
 
     pub fn undo(&mut self) -> Result<TransactionResult, ()> {
         if let Some(tx) = self.undo_stack.pop() {
+            let invalidated_object_ids = self.invalidated_object_ids(&tx);
             self.storage.begin(tx.clone()).unwrap();
             Ok(TransactionResult {
-                invalidated_object_ids: self.invalidated_object_ids(&tx),
+                invalidated_object_ids,
                 transaction: tx,
             })
         } else {
@@ -98,6 +106,9 @@ impl ClientFollowerDocument {
         }
     }
 
+    /// Returns the object ids to be invalidated by the incoming transaction.
+    ///
+    /// Should be called right before beginning/finishing transaction.
     fn invalidated_object_ids(&self, tx: &Transaction) -> HashSet<ObjectId> {
         let mut result = HashSet::new();
         for m in &tx.items {
@@ -107,8 +118,7 @@ impl ClientFollowerDocument {
                     Some(PropValue::Reference(parent_id)),
                 ) => {
                     if let Some(prev_parent_id) = self
-                        .storage
-                        .readable_pre_tx()
+                        .readable()
                         .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
                     {
                         result.insert(prev_parent_id.clone());
@@ -117,14 +127,6 @@ impl ClientFollowerDocument {
                 }
                 DocumentMutation::UpsertProp(PropKey(object_id, PropKind::Index), _)
                 | DocumentMutation::DeleteObject(object_id) => {
-                    // TODO: 트랜잭션 적용 전/후 각각 invalidation 을 계산할 필요 있음
-                    if let Some(parent_id) = self
-                        .storage
-                        .readable_pre_tx()
-                        .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
-                    {
-                        result.insert(parent_id.clone());
-                    }
                     if let Some(parent_id) = self
                         .readable()
                         .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))

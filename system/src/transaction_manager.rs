@@ -10,6 +10,10 @@ impl TransactionManager {
         Self { txs: Vec::new() }
     }
 
+    pub fn get(&self, tx_id: &TransactionId) -> Option<&Transaction> {
+        self.txs.iter().find(|tx| &tx.id == tx_id)
+    }
+
     pub fn push(&mut self, tx: Transaction) {
         // ASSUME: CommandId 는 u16 으로 충분할 것
         debug_assert!(self

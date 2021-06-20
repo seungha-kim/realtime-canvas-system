@@ -18,8 +18,8 @@ impl TransactionalStorage {
         }
     }
 
-    pub fn readable_pre_tx(&self) -> &impl PropReadable {
-        &self.doc_storage
+    pub fn get_tx(&self, tx_id: &TransactionId) -> Option<&Transaction> {
+        self.tx_manager.get(tx_id)
     }
 
     pub fn from_snapshot(snapshot: DocumentSnapshot) -> Self {
