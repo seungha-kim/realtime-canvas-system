@@ -6,6 +6,7 @@ use crate::transactional_storage::TransactionalStorage;
 use crate::{DocumentCommand, DocumentSnapshot, PropReadable};
 use std::collections::HashSet;
 
+#[derive(Debug)]
 pub struct ClientFollowerDocument {
     storage: TransactionalStorage,
     undo_stack: Vec<Transaction>,

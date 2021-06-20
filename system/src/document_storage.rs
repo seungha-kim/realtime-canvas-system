@@ -26,7 +26,6 @@ struct Record {
 pub struct DocumentStorage {
     document_id: uuid::Uuid,
     objects: HashMap<ObjectId, ObjectKind>,
-    deleted_objects: HashSet<ObjectId>,
 
     props: HashMap<RecordId, Record>,
     idx_by_object_id_and_prop_kind: HashMap<(ObjectId, PropKind), RecordId>,
@@ -41,7 +40,6 @@ impl DocumentStorage {
         DocumentStorage {
             document_id,
             objects,
-            deleted_objects: HashSet::new(),
 
             props: HashMap::new(),
             idx_by_object_id_and_prop_kind: HashMap::new(),
@@ -107,9 +105,7 @@ impl DocumentStorage {
                 Ok(())
             }
             DocumentMutation::DeleteObject(object_id) => {
-                if self.objects.contains_key(object_id) {
-                    self.deleted_objects.insert(object_id.clone());
-                }
+                self.objects.remove(object_id);
                 Ok(())
             }
         }
@@ -170,7 +166,24 @@ impl PropReadable for DocumentStorage {
     }
 
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool> {
-        Some(self.deleted_objects.contains(object_id))
+        if self.objects.contains_key(object_id) {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
+    fn get_all_props_of_object(&self, object_id: &ObjectId) -> Vec<(PropKind, Option<PropValue>)> {
+        self.idx_by_object_id
+            .get(object_id)
+            .unwrap_or(&Vec::new())
+            .iter()
+            .filter_map(|record_id| {
+                self.props
+                    .get(record_id)
+                    .map(|record| (record.prop_kind.clone(), Some(record.prop_value.clone())))
+            })
+            .collect()
     }
 
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {

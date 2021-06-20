@@ -6,6 +6,7 @@ use crate::document_storage::DocumentSnapshot;
 use crate::traits::DocumentReadable;
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct ServerLeaderDocument {
     storage: TransactionalStorage,
 }

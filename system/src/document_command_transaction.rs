@@ -124,7 +124,16 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
             DocumentMutation::UpsertProp(id, PropKind::PosY, Some(PropValue::Float(pos.y))),
         ])),
         DocumentCommand::DeleteObject { id } => {
-            Ok(Transaction::new(vec![DocumentMutation::DeleteObject(id)]))
+            let mut result = Vec::new();
+            for (ref prop_kind, _) in readable.get_all_props_of_object(&id) {
+                result.push(DocumentMutation::UpsertProp(
+                    id.clone(),
+                    prop_kind.clone(),
+                    None,
+                ));
+            }
+            result.push(DocumentMutation::DeleteObject(id));
+            Ok(Transaction::new(result))
         }
         DocumentCommand::UpdateIndex { id, int_index } => {
             let new_index_str = readable

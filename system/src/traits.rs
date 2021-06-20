@@ -9,6 +9,7 @@ pub trait PropReadable {
     fn get_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&PropValue>;
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind>;
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool>;
+    fn get_all_props_of_object(&self, object_id: &ObjectId) -> Vec<(PropKind, Option<PropValue>)>; // TODO
 
     fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
         self.get_prop(object_id, prop_kind)
@@ -60,7 +61,7 @@ pub trait PropReadable {
         // TODO: optimize
         let ids = self
             .containing_objects()
-            .filter(|object_id| !self.is_deleted(object_id).unwrap_or(true))
+            .filter(|object_id| !self.is_deleted(object_id).unwrap_or(false))
             .filter(|object_id| {
                 self.get_id_prop(*object_id, &PropKind::Parent)
                     .map(|parent_id| parent_id == target_parent_id)

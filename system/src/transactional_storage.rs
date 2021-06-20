@@ -5,6 +5,7 @@ use super::document_storage::*;
 use super::transaction_manager::*;
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub struct TransactionalStorage {
     doc_storage: DocumentStorage,
     tx_manager: TransactionManager,
@@ -68,6 +69,34 @@ impl PropReadable for TransactionalStorage {
         self.tx_manager
             .is_deleted(object_id)
             .or(self.doc_storage.is_deleted(object_id))
+    }
+
+    fn get_all_props_of_object(&self, object_id: &ObjectId) -> Vec<(PropKind, Option<PropValue>)> {
+        let from_kv = self.doc_storage.get_all_props_of_object(object_id);
+        let from_tx = self.tx_manager.get_all_props_of_object(object_id);
+        let mut result = from_kv.clone();
+
+        for (prop_kind, prop_value_opt) in &mut result {
+            for (prop_kind_tx, prop_value_opt_tx) in &from_tx {
+                if prop_kind == prop_kind_tx {
+                    *prop_value_opt = prop_value_opt_tx.clone();
+                }
+            }
+        }
+
+        let mut difference = from_tx
+            .iter()
+            .cloned()
+            .filter(|(diff_prop_kind, ..)| {
+                from_kv
+                    .iter()
+                    .all(|(prop_kind, ..)| diff_prop_kind != prop_kind)
+            })
+            .collect::<Vec<_>>();
+
+        result.append(&mut difference);
+
+        result
     }
 
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {

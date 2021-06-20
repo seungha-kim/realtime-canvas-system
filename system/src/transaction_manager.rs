@@ -1,6 +1,7 @@
 use super::message::*;
 use super::traits::PropReadable;
 
+#[derive(Debug)]
 pub struct TransactionManager {
     txs: Vec<Transaction>,
 }
@@ -81,6 +82,25 @@ impl PropReadable for TransactionManager {
             }
         }
         None
+    }
+
+    fn get_all_props_of_object(&self, object_id: &ObjectId) -> Vec<(PropKind, Option<PropValue>)> {
+        let mut result = Vec::new();
+        for tx in &self.txs {
+            for mutation in &tx.items {
+                match mutation {
+                    DocumentMutation::UpsertProp(can_object_id, prop_kind, prop_value)
+                        if can_object_id == object_id =>
+                    {
+                        if let Some((_, pv)) = result.iter_mut().find(|(pk, _)| pk == prop_kind) {
+                            *pv = prop_value.clone();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        result
     }
 
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {
