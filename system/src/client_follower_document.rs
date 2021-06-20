@@ -142,28 +142,27 @@ impl ClientFollowerDocument {
         for m in &tx.items {
             match m {
                 DocumentMutation::UpsertProp(
-                    PropKey(object_id, PropKind::Parent),
+                    object_id,
+                    PropKind::Parent,
                     Some(PropValue::Reference(parent_id)),
                 ) => {
-                    if let Some(prev_parent_id) = self
-                        .readable()
-                        .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
+                    if let Some(prev_parent_id) =
+                        self.readable().get_id_prop(object_id, &PropKind::Parent)
                     {
                         result.insert(prev_parent_id.clone());
                     }
                     result.insert(parent_id.clone());
                 }
-                DocumentMutation::UpsertProp(PropKey(object_id, PropKind::Index), _)
+                DocumentMutation::UpsertProp(object_id, PropKind::Index, _)
                 | DocumentMutation::DeleteObject(object_id) => {
-                    if let Some(parent_id) = self
-                        .readable()
-                        .get_id_prop(&PropKey(object_id.clone(), PropKind::Parent))
+                    if let Some(parent_id) =
+                        self.readable().get_id_prop(object_id, &PropKind::Parent)
                     {
                         result.insert(parent_id.clone());
                     }
                 }
-                DocumentMutation::UpsertProp(prop_key, _) => {
-                    result.insert(prop_key.0);
+                DocumentMutation::UpsertProp(object_id, ..) => {
+                    result.insert(object_id.clone());
                 }
                 _ => {}
             }
@@ -181,9 +180,13 @@ impl Transaction {
                 DocumentMutation::CreateObject(object_id, _) => {
                     mutations.push(DocumentMutation::DeleteObject(object_id.clone()));
                 }
-                DocumentMutation::UpsertProp(prop_key, _) => {
-                    let prev_value = r.get_any_prop(prop_key);
-                    mutations.push(DocumentMutation::UpsertProp(prop_key.clone(), prev_value))
+                DocumentMutation::UpsertProp(object_id, prop_kind, _) => {
+                    let prev_value = r.get_any_prop(object_id, prop_kind);
+                    mutations.push(DocumentMutation::UpsertProp(
+                        object_id.clone(),
+                        prop_kind.clone(),
+                        prev_value,
+                    ))
                 }
                 DocumentMutation::DeleteObject(object_id) => {
                     let object_kind = r.get_object_kind(object_id).unwrap();
@@ -222,29 +225,35 @@ mod tests {
                 // frame
                 DocumentMutation::CreateObject(frame_id, ObjectKind::Frame),
                 DocumentMutation::UpsertProp(
-                    PropKey(frame_id, PropKind::PosX),
+                    frame_id,
+                    PropKind::PosX,
                     Some(PropValue::Float(10.0)),
                 ),
                 DocumentMutation::UpsertProp(
-                    PropKey(frame_id, PropKind::PosY),
+                    frame_id,
+                    PropKind::PosY,
                     Some(PropValue::Float(20.0)),
                 ),
                 DocumentMutation::UpsertProp(
-                    PropKey(frame_id, PropKind::Parent),
+                    frame_id,
+                    PropKind::Parent,
                     Some(PropValue::Reference(document_id)),
                 ),
                 // oval
                 DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
                 DocumentMutation::UpsertProp(
-                    PropKey(oval_id, PropKind::PosX),
+                    oval_id,
+                    PropKind::PosX,
                     Some(PropValue::Float(100.0)),
                 ),
                 DocumentMutation::UpsertProp(
-                    PropKey(oval_id, PropKind::PosY),
+                    oval_id,
+                    PropKind::PosY,
                     Some(PropValue::Float(100.0)),
                 ),
                 DocumentMutation::UpsertProp(
-                    PropKey(oval_id, PropKind::Parent),
+                    oval_id,
+                    PropKind::Parent,
                     Some(PropValue::Reference(document_id)),
                 ),
             ]))
@@ -266,7 +275,8 @@ mod tests {
             .iter()
             .find_map(|m| match m {
                 DocumentMutation::UpsertProp(
-                    PropKey(object_id, PropKind::PosX),
+                    object_id,
+                    PropKind::PosX,
                     Some(PropValue::Float(pos_x)),
                 ) if object_id == &oval_id => Some(pos_x.clone()),
                 _ => None,
@@ -279,7 +289,8 @@ mod tests {
             .iter()
             .find_map(|m| match m {
                 DocumentMutation::UpsertProp(
-                    PropKey(object_id, PropKind::PosY),
+                    object_id,
+                    PropKind::PosY,
                     Some(PropValue::Float(pos_y)),
                 ) if object_id == &oval_id => Some(pos_y.clone()),
                 _ => None,

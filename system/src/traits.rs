@@ -1,27 +1,27 @@
 use crate::document_storage::DocumentSnapshot;
-use crate::{Color, ObjectId, ObjectKind, PropKey, PropKind, PropValue};
+use crate::{Color, ObjectId, ObjectKind, PropKind, PropValue};
 use base95::Base95;
 use euclid::default::Transform2D;
 use std::collections::HashSet;
 use std::str::FromStr;
 
 pub trait PropReadable {
-    fn get_string_prop(&self, key: &PropKey) -> Option<&str>;
-    fn get_id_prop(&self, key: &PropKey) -> Option<&ObjectId>;
-    fn get_float_prop(&self, key: &PropKey) -> Option<&f32>;
-    fn get_color_prop(&self, key: &PropKey) -> Option<&Color>;
+    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str>;
+    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId>;
+    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32>;
+    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color>;
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind>;
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool>;
 
-    fn get_any_prop(&self, key: &PropKey) -> Option<PropValue> {
-        if let Some(s) = self.get_string_prop(key) {
+    fn get_any_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<PropValue> {
+        if let Some(s) = self.get_string_prop(object_id, prop_kind) {
             Some(PropValue::String(s.to_owned()))
-        } else if let Some(id) = self.get_id_prop(key) {
+        } else if let Some(id) = self.get_id_prop(object_id, prop_kind) {
             Some(PropValue::Reference(id.clone()))
-        } else if let Some(f) = self.get_float_prop(key) {
+        } else if let Some(f) = self.get_float_prop(object_id, prop_kind) {
             Some(PropValue::Float(f.clone()))
-        } else if let Some(c) = self.get_color_prop(key) {
+        } else if let Some(c) = self.get_color_prop(object_id, prop_kind) {
             Some(PropValue::Color(c.clone()))
         } else {
             None
@@ -36,8 +36,7 @@ pub trait PropReadable {
             if let Some(current_object_id) = current_object_id_opt {
                 let local_transform = self.get_local_transform(current_object_id);
                 result = result.then(&local_transform);
-                current_object_id_opt =
-                    self.get_id_prop(&PropKey(current_object_id.clone(), PropKind::Parent));
+                current_object_id_opt = self.get_id_prop(current_object_id, &PropKind::Parent);
             } else {
                 break result;
             }
@@ -46,10 +45,10 @@ pub trait PropReadable {
 
     fn get_local_transform(&self, object_id: &ObjectId) -> Transform2D<f32> {
         let pos_x = self
-            .get_float_prop(&PropKey(object_id.clone(), PropKind::PosX))
+            .get_float_prop(object_id, &PropKind::PosX)
             .unwrap_or(&0.0);
         let pos_y = self
-            .get_float_prop(&PropKey(object_id.clone(), PropKind::PosY))
+            .get_float_prop(object_id, &PropKind::PosY)
             .unwrap_or(&0.0);
         // TODO: scale, rotation, ...
         Transform2D::translation(*pos_x, *pos_y)
@@ -64,7 +63,7 @@ pub trait PropReadable {
             .containing_objects()
             .filter(|object_id| !self.is_deleted(object_id).unwrap_or(true))
             .filter(|object_id| {
-                self.get_id_prop(&PropKey(**object_id, PropKind::Parent))
+                self.get_id_prop(*object_id, &PropKind::Parent)
                     .map(|parent_id| parent_id == target_parent_id)
                     .unwrap_or(false)
             })
@@ -75,7 +74,7 @@ pub trait PropReadable {
             .iter()
             .map(|object_id| {
                 let index = self
-                    .get_string_prop(&PropKey(object_id.clone(), PropKind::Index))
+                    .get_string_prop(object_id, &PropKind::Index)
                     .and_then(|index_str| Base95::from_str(index_str).ok())
                     .unwrap_or(Base95::mid());
                 (object_id.clone(), index)

@@ -47,46 +47,46 @@ impl TransactionManager {
 }
 
 impl PropReadable for TransactionManager {
-    fn get_string_prop(&self, target_key: &PropKey) -> Option<&str> {
+    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, Some(PropValue::String(v)))
-                if prop_key == target_key =>
-            {
-                Some(v.as_str())
-            }
+            DocumentMutation::UpsertProp(
+                can_object_id,
+                can_prop_kind,
+                Some(PropValue::String(v)),
+            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v.as_str()),
             _ => None,
         })
     }
 
-    fn get_id_prop(&self, target_key: &PropKey) -> Option<&ObjectId> {
+    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, Some(PropValue::Reference(v)))
-                if prop_key == target_key =>
-            {
-                Some(v)
-            }
+            DocumentMutation::UpsertProp(
+                can_object_id,
+                can_prop_kind,
+                Some(PropValue::Reference(v)),
+            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v),
             _ => None,
         })
     }
 
-    fn get_float_prop(&self, target_key: &PropKey) -> Option<&f32> {
+    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, Some(PropValue::Float(v)))
-                if prop_key == target_key =>
-            {
-                Some(v)
-            }
+            DocumentMutation::UpsertProp(
+                can_object_id,
+                can_prop_kind,
+                Some(PropValue::Float(v)),
+            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v),
             _ => None,
         })
     }
 
-    fn get_color_prop(&self, target_key: &PropKey) -> Option<&Color> {
+    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(prop_key, Some(PropValue::Color(v)))
-                if prop_key == target_key =>
-            {
-                Some(v)
-            }
+            DocumentMutation::UpsertProp(
+                can_object_id,
+                can_prop_kind,
+                Some(PropValue::Color(v)),
+            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v),
             _ => None,
         })
     }
@@ -122,7 +122,7 @@ impl PropReadable for TransactionManager {
                 .iter()
                 .flat_map(|tx| tx.items.iter())
                 .filter_map(|item| match item {
-                    DocumentMutation::UpsertProp(prop_key, _) => Some(&prop_key.0),
+                    DocumentMutation::UpsertProp(object_id, ..) => Some(object_id),
                     _ => None,
                 }),
         )
@@ -143,26 +143,24 @@ mod tests {
         manager.push(Transaction {
             id: uuid::Uuid::new_v4(),
             items: vec![DocumentMutation::UpsertProp(
-                PropKey(object_id, PropKind::Name),
+                object_id,
+                PropKind::Name,
                 Some(PropValue::String("world".into())),
             )],
         });
 
         assert_eq!(
-            manager.get_string_prop(&PropKey(object_id, PropKind::Name)),
+            manager.get_string_prop(&object_id, &PropKind::Name),
             Some("world")
         );
 
         assert_eq!(
-            manager.get_string_prop(&PropKey(object_id, PropKind::RadiusH)),
+            manager.get_string_prop(&object_id, &PropKind::RadiusH),
             None
         );
 
         let other_id = uuid::Uuid::new_v4();
-        assert_eq!(
-            manager.get_string_prop(&PropKey(other_id, PropKind::Name)),
-            None
-        );
+        assert_eq!(manager.get_string_prop(&other_id, &PropKind::Name), None);
     }
 
     #[test]
@@ -176,7 +174,8 @@ mod tests {
         manager.push(Transaction {
             id: tx_id,
             items: vec![DocumentMutation::UpsertProp(
-                PropKey(object_id, PropKind::Name),
+                object_id,
+                PropKind::Name,
                 Some(PropValue::String("world".into())),
             )],
         });
@@ -185,7 +184,8 @@ mod tests {
         manager.push(Transaction {
             id: tx_id,
             items: vec![DocumentMutation::UpsertProp(
-                PropKey(object_id, PropKind::Name),
+                object_id,
+                PropKind::Name,
                 Some(PropValue::String("world".into())),
             )],
         });

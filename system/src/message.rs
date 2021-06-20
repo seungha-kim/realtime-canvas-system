@@ -104,7 +104,7 @@ pub enum SessionError {
 pub enum DocumentMutation {
     CreateObject(ObjectId, ObjectKind),
     DeleteObject(ObjectId),
-    UpsertProp(PropKey, Option<PropValue>),
+    UpsertProp(ObjectId, PropKind, Option<PropValue>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -130,7 +130,7 @@ pub struct SessionSnapshot {
     pub connections: Vec<ConnectionId>,
 }
 
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PropKind {
     Parent,
     Name,
@@ -144,15 +144,42 @@ pub enum PropKind {
     FillColor,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct PropKey(pub ObjectId, pub PropKind);
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PropValue {
     String(String),
     Float(f32),
     Reference(ObjectId),
     Color(Color),
+}
+
+impl PropValue {
+    pub fn as_string(&self) -> Option<&str> {
+        match self {
+            Self::String(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    pub fn as_float(&self) -> Option<&f32> {
+        match self {
+            Self::Float(f) => Some(f),
+            _ => None,
+        }
+    }
+
+    pub fn as_reference(&self) -> Option<&ObjectId> {
+        match self {
+            Self::Reference(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    pub fn as_color(&self) -> Option<&Color> {
+        match self {
+            Self::Color(c) => Some(c),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]

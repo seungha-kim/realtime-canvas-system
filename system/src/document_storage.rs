@@ -13,16 +13,24 @@ use uuid::Uuid;
 
 // atomicity 를 유지해야 하는 단위로 데이터를 저장하는 key value store. 그 밖에 대해서는 모른다. (undo 라던가)
 
+type RecordId = uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct Record {
+    object_id: ObjectId,
+    prop_kind: PropKind,
+    prop_value: PropValue,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DocumentStorage {
     document_id: uuid::Uuid,
     objects: HashMap<ObjectId, ObjectKind>,
     deleted_objects: HashSet<ObjectId>,
 
-    string_props: HashMap<PropKey, String>,
-    float_props: HashMap<PropKey, f32>,
-    color_props: HashMap<PropKey, Color>,
-    reference_props: HashMap<PropKey, ObjectId>,
+    props: HashMap<RecordId, Record>,
+    idx_by_object_id_and_prop_kind: HashMap<(ObjectId, PropKind), RecordId>,
+    idx_by_object_id: HashMap<ObjectId, Vec<RecordId>>,
 }
 
 impl DocumentStorage {
@@ -35,10 +43,9 @@ impl DocumentStorage {
             objects,
             deleted_objects: HashSet::new(),
 
-            string_props: HashMap::new(),
-            float_props: HashMap::new(),
-            color_props: HashMap::new(),
-            reference_props: HashMap::new(),
+            props: HashMap::new(),
+            idx_by_object_id_and_prop_kind: HashMap::new(),
+            idx_by_object_id: HashMap::new(),
         }
     }
 
@@ -60,26 +67,42 @@ impl DocumentStorage {
                 self.objects.insert(object_id.clone(), object_kind.clone());
                 Ok(())
             }
-            DocumentMutation::UpsertProp(prop_key, prop_value) => {
-                match prop_value {
-                    Some(PropValue::String(v)) => {
-                        self.string_props.insert(prop_key.clone(), v.clone());
+            DocumentMutation::UpsertProp(object_id, prop_kind, prop_value_opt) => {
+                if let Some(prop_value) = prop_value_opt {
+                    if let Some(record_id) = self
+                        .idx_by_object_id_and_prop_kind
+                        .get(&(object_id.clone(), prop_kind.clone()))
+                    {
+                        // Update prop
+                        let record = self.props.get_mut(record_id).expect("must exist");
+                        *record = Record {
+                            object_id: object_id.clone(),
+                            prop_kind: prop_kind.clone(),
+                            prop_value: prop_value.clone(),
+                        };
+                    } else {
+                        // Insert prop
+                        let record_id = uuid::Uuid::new_v4();
+                        self.props.insert(
+                            record_id,
+                            Record {
+                                object_id: object_id.clone(),
+                                prop_kind: prop_kind.clone(),
+                                prop_value: prop_value.clone(),
+                            },
+                        );
+                        self.create_index_item(&record_id, object_id, prop_kind);
                     }
-                    Some(PropValue::Float(v)) => {
-                        self.float_props.insert(prop_key.clone(), v.clone());
-                    }
-                    Some(PropValue::Reference(id)) => {
-                        self.reference_props.insert(prop_key.clone(), id.clone());
-                    }
-                    Some(PropValue::Color(color)) => {
-                        self.color_props.insert(prop_key.clone(), color.clone());
-                    }
-                    None => {
-                        self.string_props.remove(prop_key);
-                        self.float_props.remove(prop_key);
-                        self.reference_props.remove(prop_key);
-                        self.color_props.remove(prop_key);
-                    }
+                } else {
+                    // Delete prop
+                    let idx_key = &(object_id.clone(), prop_kind.clone());
+                    let record_id = self
+                        .idx_by_object_id_and_prop_kind
+                        .get(idx_key)
+                        .expect("must exist")
+                        .clone();
+                    self.props.remove(&record_id);
+                    self.delete_index_item(&record_id, object_id, prop_kind);
                 }
                 Ok(())
             }
@@ -91,23 +114,76 @@ impl DocumentStorage {
             }
         }
     }
+
+    fn create_index_item(
+        &mut self,
+        record_id: &RecordId,
+        object_id: &ObjectId,
+        prop_kind: &PropKind,
+    ) {
+        self.idx_by_object_id_and_prop_kind
+            .insert((object_id.clone(), prop_kind.clone()), record_id.clone());
+
+        if !self.idx_by_object_id.contains_key(object_id) {
+            self.idx_by_object_id.insert(object_id.clone(), Vec::new());
+        }
+        let v = self
+            .idx_by_object_id
+            .get_mut(object_id)
+            .expect("must exist");
+        if !v.contains(record_id) {
+            v.push(record_id.clone());
+        }
+    }
+
+    fn delete_index_item(
+        &mut self,
+        record_id: &RecordId,
+        object_id: &ObjectId,
+        prop_kind: &PropKind,
+    ) {
+        self.idx_by_object_id_and_prop_kind
+            .remove(&(object_id.clone(), prop_kind.clone()));
+
+        let should_delete_vec = if let Some(v) = self.idx_by_object_id.get_mut(object_id) {
+            v.retain(|r| r != record_id);
+            v.is_empty()
+        } else {
+            false
+        };
+        if should_delete_vec {
+            self.idx_by_object_id.remove(object_id);
+        }
+    }
 }
 
 impl PropReadable for DocumentStorage {
-    fn get_string_prop(&self, key: &PropKey) -> Option<&str> {
-        self.string_props.get(key).map(String::as_ref)
+    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
+        self.idx_by_object_id_and_prop_kind
+            .get(&(object_id.clone(), prop_kind.clone()))
+            .and_then(|record_id| self.props.get(record_id))
+            .and_then(|record| record.prop_value.as_string())
     }
 
-    fn get_id_prop(&self, key: &PropKey) -> Option<&ObjectId> {
-        self.reference_props.get(key)
+    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId> {
+        self.idx_by_object_id_and_prop_kind
+            .get(&(object_id.clone(), prop_kind.clone()))
+            .and_then(|record_id| self.props.get(record_id))
+            .and_then(|record| record.prop_value.as_reference())
     }
 
-    fn get_float_prop(&self, key: &PropKey) -> Option<&f32> {
-        self.float_props.get(key)
+    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32> {
+        self.idx_by_object_id_and_prop_kind
+            .get(&(object_id.clone(), prop_kind.clone()))
+            .and_then(|record_id| self.props.get(record_id))
+            .and_then(|record| record.prop_value.as_float())
     }
 
-    fn get_color_prop(&self, key: &PropKey) -> Option<&Color> {
-        self.color_props.get(key)
+    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color> {
+        self.idx_by_object_id_and_prop_kind
+            .get(&(object_id.clone(), prop_kind.clone()))
+            .and_then(|record_id| self.props.get(record_id))
+            .and_then(|record| record.prop_value.as_color())
     }
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {
