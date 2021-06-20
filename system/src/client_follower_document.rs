@@ -9,6 +9,7 @@ use std::collections::HashSet;
 pub struct ClientFollowerDocument {
     storage: TransactionalStorage,
     undo_stack: Vec<Transaction>,
+    redo_stack: Vec<Transaction>,
 }
 
 impl Materialize<TransactionalStorage> for ClientFollowerDocument {
@@ -29,14 +30,18 @@ impl ClientFollowerDocument {
         Self {
             storage,
             undo_stack: Vec::new(),
+            redo_stack: Vec::new(),
         }
     }
 
     pub fn handle_command(&mut self, command: DocumentCommand) -> Result<TransactionResult, ()> {
         log::debug!("Handle document command: {:?}", command);
         let tx = convert_command_to_tx(&self.storage, command)?;
-        let invalidated_object_ids = self.invalidated_object_ids(&tx);
+
         self.undo_stack.push(tx.inverted(&self.storage));
+        self.redo_stack.clear();
+
+        let invalidated_object_ids = self.invalidated_object_ids(&tx);
         self.storage.begin(tx.clone()).unwrap();
         Ok(TransactionResult {
             invalidated_object_ids,
@@ -80,6 +85,7 @@ impl ClientFollowerDocument {
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
             if let Ok(tx) = self.storage.finish(tx_id, false) {
                 self.undo_stack.retain(|item| &item.id != tx_id);
+                self.redo_stack.retain(|item| &item.id != tx_id);
                 Ok(TransactionResult {
                     invalidated_object_ids,
                     transaction: tx,
@@ -94,6 +100,28 @@ impl ClientFollowerDocument {
 
     pub fn undo(&mut self) -> Result<TransactionResult, ()> {
         if let Some(tx) = self.undo_stack.pop() {
+            let inverted = tx.inverted(self.readable());
+            log::info!("creating redo transaction {:?}", inverted);
+            self.redo_stack.push(inverted);
+
+            let invalidated_object_ids = self.invalidated_object_ids(&tx);
+            self.storage.begin(tx.clone()).unwrap();
+            Ok(TransactionResult {
+                invalidated_object_ids,
+                transaction: tx,
+            })
+        } else {
+            // TODO: Err type
+            Err(())
+        }
+    }
+
+    pub fn redo(&mut self) -> Result<TransactionResult, ()> {
+        if let Some(tx) = self.redo_stack.pop() {
+            let inverted = tx.inverted(self.readable());
+            log::info!("creating undo transaction {:?}", inverted);
+            self.undo_stack.push(inverted);
+
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
             self.storage.begin(tx.clone()).unwrap();
             Ok(TransactionResult {

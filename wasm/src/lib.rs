@@ -128,6 +128,17 @@ impl CanvasSystem {
         });
     }
 
+    pub fn redo(&mut self) {
+        self.session.as_mut().and_then(|s| s.redo().ok()).map(|tx| {
+            let command_id = self.new_command_id();
+            self.pending_identifiable_commands
+                .push_back(IdentifiableCommand {
+                    command_id,
+                    system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(tx)),
+                });
+        });
+    }
+
     pub fn consume_invalidated_object_ids(&mut self) -> String {
         self.session
             .as_mut()
