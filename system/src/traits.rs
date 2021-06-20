@@ -6,26 +6,25 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 pub trait PropReadable {
-    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str>;
-    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId>;
-    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32>;
-    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color>;
-
+    fn get_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&PropValue>;
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind>;
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool>;
 
-    fn get_any_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<PropValue> {
-        if let Some(s) = self.get_string_prop(object_id, prop_kind) {
-            Some(PropValue::String(s.to_owned()))
-        } else if let Some(id) = self.get_id_prop(object_id, prop_kind) {
-            Some(PropValue::Reference(id.clone()))
-        } else if let Some(f) = self.get_float_prop(object_id, prop_kind) {
-            Some(PropValue::Float(f.clone()))
-        } else if let Some(c) = self.get_color_prop(object_id, prop_kind) {
-            Some(PropValue::Color(c.clone()))
-        } else {
-            None
-        }
+    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
+        self.get_prop(object_id, prop_kind)
+            .and_then(|prop_value| prop_value.as_string())
+    }
+    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId> {
+        self.get_prop(object_id, prop_kind)
+            .and_then(|prop_value| prop_value.as_reference())
+    }
+    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32> {
+        self.get_prop(object_id, prop_kind)
+            .and_then(|prop_value| prop_value.as_float())
+    }
+    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color> {
+        self.get_prop(object_id, prop_kind)
+            .and_then(|prop_value| prop_value.as_color())
     }
 
     // transform = from inner space point to outer space point..?

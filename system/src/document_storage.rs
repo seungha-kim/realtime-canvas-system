@@ -158,32 +158,11 @@ impl DocumentStorage {
 }
 
 impl PropReadable for DocumentStorage {
-    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
+    fn get_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&PropValue> {
         self.idx_by_object_id_and_prop_kind
             .get(&(object_id.clone(), prop_kind.clone()))
             .and_then(|record_id| self.props.get(record_id))
-            .and_then(|record| record.prop_value.as_string())
-    }
-
-    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId> {
-        self.idx_by_object_id_and_prop_kind
-            .get(&(object_id.clone(), prop_kind.clone()))
-            .and_then(|record_id| self.props.get(record_id))
-            .and_then(|record| record.prop_value.as_reference())
-    }
-
-    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32> {
-        self.idx_by_object_id_and_prop_kind
-            .get(&(object_id.clone(), prop_kind.clone()))
-            .and_then(|record_id| self.props.get(record_id))
-            .and_then(|record| record.prop_value.as_float())
-    }
-
-    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color> {
-        self.idx_by_object_id_and_prop_kind
-            .get(&(object_id.clone(), prop_kind.clone()))
-            .and_then(|record_id| self.props.get(record_id))
-            .and_then(|record| record.prop_value.as_color())
+            .map(|record| &record.prop_value)
     }
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {

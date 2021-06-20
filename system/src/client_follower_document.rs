@@ -181,11 +181,11 @@ impl Transaction {
                     mutations.push(DocumentMutation::DeleteObject(object_id.clone()));
                 }
                 DocumentMutation::UpsertProp(object_id, prop_kind, _) => {
-                    let prev_value = r.get_any_prop(object_id, prop_kind);
+                    let prev_value = r.get_prop(object_id, prop_kind);
                     mutations.push(DocumentMutation::UpsertProp(
                         object_id.clone(),
                         prop_kind.clone(),
-                        prev_value,
+                        prev_value.cloned(),
                     ))
                 }
                 DocumentMutation::DeleteObject(object_id) => {

@@ -47,46 +47,13 @@ impl TransactionManager {
 }
 
 impl PropReadable for TransactionManager {
-    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
+    fn get_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&PropValue> {
         self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(
-                can_object_id,
-                can_prop_kind,
-                Some(PropValue::String(v)),
-            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v.as_str()),
-            _ => None,
-        })
-    }
-
-    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId> {
-        self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(
-                can_object_id,
-                can_prop_kind,
-                Some(PropValue::Reference(v)),
-            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v),
-            _ => None,
-        })
-    }
-
-    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32> {
-        self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(
-                can_object_id,
-                can_prop_kind,
-                Some(PropValue::Float(v)),
-            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v),
-            _ => None,
-        })
-    }
-
-    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color> {
-        self.last_mutation(|command| match command {
-            DocumentMutation::UpsertProp(
-                can_object_id,
-                can_prop_kind,
-                Some(PropValue::Color(v)),
-            ) if can_object_id == object_id && can_prop_kind == prop_kind => Some(v),
+            DocumentMutation::UpsertProp(can_object_id, can_prop_kind, prop_value)
+                if can_object_id == object_id && can_prop_kind == prop_kind =>
+            {
+                prop_value.as_ref()
+            }
             _ => None,
         })
     }

@@ -52,27 +52,9 @@ impl TransactionalStorage {
 }
 
 impl PropReadable for TransactionalStorage {
-    fn get_string_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&str> {
-        let from_kv = self.doc_storage.get_string_prop(object_id, prop_kind);
-        let from_tx = self.tx_manager.get_string_prop(object_id, prop_kind);
-        from_tx.or(from_kv)
-    }
-
-    fn get_id_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&ObjectId> {
-        let from_kv = self.doc_storage.get_id_prop(object_id, prop_kind);
-        let from_tx = self.tx_manager.get_id_prop(object_id, prop_kind);
-        from_tx.or(from_kv)
-    }
-
-    fn get_float_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&f32> {
-        let from_kv = self.doc_storage.get_float_prop(object_id, prop_kind);
-        let from_tx = self.tx_manager.get_float_prop(object_id, prop_kind);
-        from_tx.or(from_kv)
-    }
-
-    fn get_color_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&Color> {
-        let from_kv = self.doc_storage.get_color_prop(object_id, prop_kind);
-        let from_tx = self.tx_manager.get_color_prop(object_id, prop_kind);
+    fn get_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&PropValue> {
+        let from_kv = self.doc_storage.get_prop(object_id, prop_kind);
+        let from_tx = self.tx_manager.get_prop(object_id, prop_kind);
         from_tx.or(from_kv)
     }
 
