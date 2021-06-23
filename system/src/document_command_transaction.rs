@@ -1,6 +1,6 @@
 use crate::euclid::default::Transform2D;
 use crate::{
-    Color, DocumentCommand, DocumentMutation, DocumentReadable, ObjectId, ObjectKind, PropKind,
+    DocumentCommand, DocumentMutation, DocumentReadable, ObjectId, ObjectKind, PropKind,
     PropReadable, PropValue, Transaction,
 };
 use base95::Base95;
@@ -58,9 +58,6 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
             let parent_id = readable.document_id();
             let index = create_last_index_of_parent(readable, &parent_id);
 
-            // FIXME: 테스트용 oval
-            let oval_id = uuid::Uuid::new_v4();
-
             Ok(Transaction::new(vec![
                 DocumentMutation::CreateObject(id, ObjectKind::Frame),
                 DocumentMutation::UpsertProp(
@@ -77,39 +74,6 @@ pub fn convert_command_to_tx<R: PropReadable + DocumentReadable>(
                 DocumentMutation::UpsertProp(id, PropKind::PosY, Some(PropValue::Float(pos.y))),
                 DocumentMutation::UpsertProp(id, PropKind::Width, Some(PropValue::Float(w))),
                 DocumentMutation::UpsertProp(id, PropKind::Height, Some(PropValue::Float(h))),
-                // FIXME: 테스트용 Oval
-                DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::Parent,
-                    Some(PropValue::Reference(id)),
-                ),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::Index,
-                    Some(PropValue::String(Base95::mid().to_string())),
-                ),
-                DocumentMutation::UpsertProp(oval_id, PropKind::PosX, Some(PropValue::Float(0.0))),
-                DocumentMutation::UpsertProp(oval_id, PropKind::PosY, Some(PropValue::Float(0.0))),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::RadiusH,
-                    Some(PropValue::Float(30.0)),
-                ),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::RadiusV,
-                    Some(PropValue::Float(30.0)),
-                ),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::FillColor,
-                    Some(PropValue::Color(Color {
-                        r: 50,
-                        g: 50,
-                        b: 50,
-                    })),
-                ),
             ]))
         }
         DocumentCommand::UpdateName { id, name } => {
