@@ -14,3 +14,6 @@ tokio = "0.2"
 log = "0.4"
 env_logger = "0.8.3"
 system = { path = "../system" }
+askama_actix = "0.11.1"
+askama = { version = "0.10.5", features = ["with-actix-web"] }
+serde = { version = "1.0.125", features = ["derive"] }
