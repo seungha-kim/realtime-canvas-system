@@ -41,11 +41,18 @@ impl ServerState {
         connection_id
     }
 
-    pub fn create_session(&mut self, by: &ConnectionId) -> SessionId {
-        let session_id = self.new_session_id();
-        self.sessions.insert(session_id, Session::new());
-        self.join_session(by, &session_id).unwrap();
-        session_id
+    pub fn create_session(
+        &mut self,
+        connection_id: &ConnectionId,
+    ) -> Result<SessionId, ServerError> {
+        if let Some(ConnectionState::InLobby) = self.connection_states.get(&connection_id) {
+            let session_id = self.new_session_id();
+            self.sessions.insert(session_id, Session::new());
+            self.join_session(connection_id, &session_id)
+                .map(|_| session_id)
+        } else {
+            Err(ServerError::InvalidCommandForState)
+        }
     }
 
     pub fn join_session(
@@ -130,8 +137,8 @@ mod tests {
     fn it_remove_session_when_all_connections_disconnect() {
         let mut state = ServerState::new();
         let conn = state.create_connection();
-        state.create_session(&conn);
-        state.leave_session(&conn).unwrap();
+        state.create_session(&conn).expect("");
+        state.leave_session(&conn).expect("");
         assert!(state.sessions.is_empty())
     }
 }

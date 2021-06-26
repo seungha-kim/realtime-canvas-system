@@ -20,17 +20,17 @@ fn it_should_materialize_oval() {
                 b: 50,
             },
         })
-        .unwrap();
+        .expect("");
 
-    let tx = server.process_transaction(tx_result.transaction).unwrap();
+    let tx = server.process_transaction(tx_result.transaction).expect("");
     let oval_object_id = match &tx.items[0] {
         DocumentMutation::CreateObject(object_id, _) => object_id.clone(),
         _ => panic!("unexpected transaction"),
     };
 
-    let oval_material_from_server = server.materialize_oval(&oval_object_id).unwrap();
+    let oval_material_from_server = server.materialize_oval(&oval_object_id).expect("");
 
-    let oval_material_from_client = client.materialize_oval(&oval_object_id).unwrap();
+    let oval_material_from_client = client.materialize_oval(&oval_object_id).expect("");
     assert_eq!(
         format!("{:?}", oval_material_from_server),
         format!("{:?}", oval_material_from_client)
@@ -47,8 +47,8 @@ fn it_should_materialize_oval() {
                 b: 50,
             },
         })
-        .unwrap();
-    server.process_transaction(tx_result.transaction).unwrap();
+        .expect("");
+    server.process_transaction(tx_result.transaction).expect("");
 
     let document_material_from_server = server.materialize_document();
     assert_eq!(document_material_from_server.children.len(), 2);

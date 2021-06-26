@@ -21,7 +21,9 @@ impl ConnectionTxStorage {
 
     pub async fn send(&mut self, to: &ConnectionId, message: ConnectionEvent) {
         if let Some(tx) = self.connection_txs.get_mut(&to) {
-            tx.send(message).await.unwrap(); // FIXME: unwrap
+            if let Err(_) = tx.send(message).await {
+                log::warn!("Connection already closed");
+            }
         } else {
             // TODO: WARN
         }

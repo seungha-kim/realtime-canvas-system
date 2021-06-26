@@ -32,17 +32,15 @@ impl TransactionalStorage {
 }
 
 impl TransactionalStorage {
-    pub fn begin(&mut self, tx: Transaction) -> Result<(), ()> {
+    pub fn begin(&mut self, tx: Transaction) {
         self.tx_manager.push(tx.clone());
-        // TODO: validation
-        Ok(())
     }
 
     pub fn finish(&mut self, tx_id: &TransactionId, commit: bool) -> Result<Transaction, ()> {
         if let Some(tx) = self.tx_manager.remove(tx_id) {
             if commit {
                 // TODO: Err
-                self.doc_storage.process(tx.clone()).unwrap();
+                self.doc_storage.process(tx.clone());
             }
             Ok(tx)
         } else {

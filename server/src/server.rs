@@ -8,7 +8,7 @@ use system::{
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
 use crate::connection_tx_storage::ConnectionTxStorage;
-use crate::server_state::{ConnectionState, ServerState};
+use crate::server_state::{ConnectionState, ServerError, ServerState};
 
 pub type ServerTx = Sender<ConnectionCommand>;
 
@@ -92,20 +92,23 @@ impl Server {
         command: &SystemCommand,
     ) -> Result<Option<SystemEvent>, SystemError> {
         match command {
-            SystemCommand::CreateSession => {
-                let session_id = self.server_state.create_session(from);
-                let session = self
-                    .server_state
-                    .sessions
-                    .get(&session_id)
-                    .expect("session must exist");
-                let connections = session.connections.clone();
-                Ok(Some(SystemEvent::JoinedSession {
-                    session_id,
-                    session_snapshot: SessionSnapshot { connections },
-                    document_snapshot: session.document.snapshot(),
-                }))
-            }
+            SystemCommand::CreateSession => self
+                .server_state
+                .create_session(from)
+                .and_then(|session_id| {
+                    let session = self
+                        .server_state
+                        .sessions
+                        .get(&session_id)
+                        .expect("session must exist");
+                    let connections = session.connections.clone();
+                    Ok(Some(SystemEvent::JoinedSession {
+                        session_id,
+                        session_snapshot: SessionSnapshot { connections },
+                        document_snapshot: session.document.snapshot(),
+                    }))
+                })
+                .map_err(From::from),
             SystemCommand::JoinSession { session_id } => {
                 let result = self.server_state.join_session(from, session_id);
                 if result.is_ok() {
@@ -175,7 +178,7 @@ impl Server {
                         .server_state
                         .sessions
                         .get_mut(&session_id)
-                        .unwrap()
+                        .expect("must exist")
                         .document
                         .process_transaction(tx.clone());
                     if let Ok(tx) = result {
@@ -260,7 +263,7 @@ impl Server {
 }
 
 pub fn spawn_server() -> ServerTx {
-    let (srv_tx, mut srv_rx) = channel::<ConnectionCommand>(16);
+    let (srv_tx, mut srv_rx) = channel::<ConnectionCommand>(256);
 
     tokio::spawn(async move {
         let mut server = Box::new(Server::new());
@@ -271,4 +274,13 @@ pub fn spawn_server() -> ServerTx {
     });
 
     return srv_tx;
+}
+
+impl From<ServerError> for SystemError {
+    fn from(e: ServerError) -> Self {
+        match e {
+            ServerError::InvalidSessionId => SystemError::InvalidSessionId,
+            ServerError::InvalidCommandForState => SystemError::InvalidCommandForState,
+        }
+    }
 }

@@ -51,19 +51,18 @@ impl DocumentStorage {
         self.document_id
     }
 
-    pub fn process(&mut self, tx: Transaction) -> Result<(), ()> {
+    /// Actually apply each mutations in a transaction to this storage.
+    /// Assume that validation succeeded before calling this method, so this must succeed.
+    pub fn process(&mut self, tx: Transaction) {
         for m in &tx.items {
-            // TODO: Err
-            self.mutate(m).unwrap();
+            self.mutate(m);
         }
-        Ok(())
     }
 
-    fn mutate(&mut self, mutation: &DocumentMutation) -> Result<(), ()> {
+    fn mutate(&mut self, mutation: &DocumentMutation) {
         match &mutation {
             DocumentMutation::CreateObject(object_id, object_kind) => {
                 self.objects.insert(object_id.clone(), object_kind.clone());
-                Ok(())
             }
             DocumentMutation::UpsertProp(object_id, prop_kind, prop_value_opt) => {
                 if let Some(prop_value) = prop_value_opt {
@@ -102,11 +101,9 @@ impl DocumentStorage {
                     self.props.remove(&record_id);
                     self.delete_index_item(&record_id, object_id, prop_kind);
                 }
-                Ok(())
             }
             DocumentMutation::DeleteObject(object_id) => {
                 self.objects.remove(object_id);
-                Ok(())
             }
         }
     }
@@ -217,13 +214,13 @@ impl std::fmt::Debug for DocumentSnapshot {
 impl From<&DocumentStorage> for DocumentSnapshot {
     fn from(d: &DocumentStorage) -> Self {
         DocumentSnapshot {
-            content: bincode::serialize(d).unwrap(),
+            content: bincode::serialize(d).expect("compatible"),
         }
     }
 }
 
 impl From<&DocumentSnapshot> for DocumentStorage {
     fn from(snapshot: &DocumentSnapshot) -> Self {
-        bincode::deserialize(&snapshot.content).unwrap()
+        bincode::deserialize(&snapshot.content).expect("compatible")
     }
 }

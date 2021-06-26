@@ -145,14 +145,17 @@ pub trait Materialize<R: PropReadable + DocumentReadable> {
     }
 
     fn materialize_object(&self, object_id: &ObjectId) -> Result<ObjectMaterial, ()> {
-        match self.readable().get_object_kind(object_id).unwrap() {
-            ObjectKind::Document => Ok(ObjectMaterial::Document(self.materialize_document())),
-            ObjectKind::Oval => Ok(ObjectMaterial::Oval(
-                self.materialize_oval(object_id).unwrap(),
-            )),
-            ObjectKind::Frame => Ok(ObjectMaterial::Frame(
-                self.materialize_frame(object_id).unwrap(),
-            )),
-        }
+        self.readable()
+            .get_object_kind(object_id)
+            .ok_or(())
+            .and_then(|object_kind| match object_kind {
+                ObjectKind::Document => Ok(ObjectMaterial::Document(self.materialize_document())),
+                ObjectKind::Oval => self
+                    .materialize_oval(object_id)
+                    .map(|m| ObjectMaterial::Oval(m)),
+                ObjectKind::Frame => self
+                    .materialize_frame(object_id)
+                    .map(|m| ObjectMaterial::Frame(m)),
+            })
     }
 }

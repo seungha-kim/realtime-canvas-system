@@ -28,13 +28,12 @@ impl SessionState {
             pending_live_pointer_events: VecDeque::new(),
         }
     }
-    pub fn handle_session_event(&mut self, event: SessionEvent) {
+
+    pub fn handle_session_event(&mut self, event: SessionEvent) -> Result<(), ()> {
         match event {
-            SessionEvent::TransactionAck(tx_id) => {
-                self.document.handle_ack(&tx_id).unwrap();
-            }
+            SessionEvent::TransactionAck(tx_id) => self.document.handle_ack(&tx_id).map(|_| ()),
             SessionEvent::TransactionNack(tx_id, _reason) => {
-                self.document.handle_nack(&tx_id).unwrap();
+                self.document.handle_nack(&tx_id).map(|_| ())
             }
             SessionEvent::OthersTransaction(tx) => {
                 if let Ok(result) = self.document.handle_transaction(tx) {
@@ -42,22 +41,25 @@ impl SessionState {
                         self.invalidated_object_ids.insert(id);
                     }
                 }
+                Ok(())
             }
             SessionEvent::SessionStateChanged(session_snapshot) => {
                 self.session_snapshot = session_snapshot;
+                Ok(())
             }
             SessionEvent::LivePointer(live_pointer) => {
                 if self.pending_live_pointer_events.len() > 100 {
                     log::warn!("live pointer events must be consumed")
                 }
                 self.pending_live_pointer_events.push_back(live_pointer);
+                Ok(())
             }
             _ => unimplemented!(),
         }
     }
 
     pub fn push_document_command(&mut self, json: String) -> Result<Transaction, ()> {
-        let command = serde_json::from_str::<DocumentCommand>(&json).unwrap();
+        let command = serde_json::from_str::<DocumentCommand>(&json).map_err(|_| ())?;
 
         if self.invalidated_object_ids.len() > 0 {
             log::warn!("invalidate_object_ids must be consumed for each command");
@@ -102,39 +104,43 @@ impl SessionState {
             "Objects being invalidated: {:?}",
             self.invalidated_object_ids
         );
-        let result = serde_json::to_string(&self.invalidated_object_ids).unwrap();
+        let result = serde_json::to_string(&self.invalidated_object_ids).unwrap_or("[]".into());
         self.invalidated_object_ids.clear();
         result
     }
 
     pub fn consume_latest_session_snapshot(&mut self) -> Option<String> {
         if self.session_snapshot_invalidated {
-            return Some(serde_json::to_string(&self.session_snapshot).unwrap());
+            serde_json::to_string(&self.session_snapshot).ok()
         } else {
             None
         }
     }
 
     pub fn consume_live_pointer_events(&mut self) -> String {
-        return serde_json::to_string(
+        serde_json::to_string(
             &self
                 .pending_live_pointer_events
                 .drain(..)
                 .collect::<Vec<_>>(),
         )
-        .unwrap();
+        .expect("must succeed")
     }
 
     pub fn materialize_document(&self) -> String {
         let document = self.document.materialize_document();
-        serde_json::to_string(&document).unwrap()
+        serde_json::to_string(&document).expect("must succeed")
     }
 
     pub fn materialize_session(&self) -> String {
-        serde_json::to_string(&self.session_snapshot).unwrap()
+        serde_json::to_string(&self.session_snapshot).expect("must succeed")
     }
 
-    pub fn materialize_object(&self, object_id: &ObjectId) -> String {
-        serde_json::to_string(&self.document.materialize_object(&object_id).unwrap()).unwrap()
+    // TODO: 타입 바뀌었음
+    pub fn materialize_object(&self, object_id: &ObjectId) -> Option<String> {
+        self.document
+            .materialize_object(&object_id)
+            .map(|m| serde_json::to_string(&m).expect("must succeed"))
+            .ok()
     }
 }

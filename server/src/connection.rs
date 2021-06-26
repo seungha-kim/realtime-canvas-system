@@ -6,6 +6,7 @@ use system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent};
 
 use crate::connection_tx_storage::ConnectionTx;
 use crate::server::ServerTx;
+use actix_web_actors::ws::{CloseCode, CloseReason};
 
 #[derive(Debug)]
 pub enum ConnectionCommand {
@@ -50,7 +51,7 @@ impl Actor for ConnectionActor {
 
         self.srv_tx
             .try_send(ConnectionCommand::Connect { tx })
-            .unwrap();
+            .expect("server must not be not closed yet");
 
         let addr = ctx.address().recipient();
 
@@ -58,18 +59,18 @@ impl Actor for ConnectionActor {
             let addr = addr;
             log::info!("connection green thread - started");
             while let Some(msg) = rx.recv().await {
-                addr.try_send(ConnectionActorMessage(msg)).unwrap(); // FIXME: unwrap
+                addr.try_send(ConnectionActorMessage(msg))
+                    .expect("should have enough buffer")
             }
             log::info!("connection green thread - terminated");
         });
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        // TODO: 버퍼 넘치면 실패함
         if let ConnectionState::Connected(id) = self.state {
             self.srv_tx
                 .try_send(ConnectionCommand::Disconnect { from: id })
-                .unwrap();
+                .expect("should have enough buffer");
         }
 
         Running::Stop
@@ -83,21 +84,25 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ConnectionActor {
             Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
             Ok(ws::Message::Binary(bin)) => {
                 log::debug!("Ingress size: {}", bin.len());
-                // TODO: 버퍼 넘치면 실패함
                 if let ConnectionState::Connected(from) = self.state {
-                    // TODO: unwrap
-                    let command = bincode::deserialize::<IdentifiableCommand>(&bin).unwrap();
-                    log::debug!("Ingress {:?}", command);
-                    self.srv_tx
-                        .try_send(ConnectionCommand::IdentifiableCommand { from, command })
-                        .unwrap();
+                    if let Ok(command) = bincode::deserialize::<IdentifiableCommand>(&bin) {
+                        log::debug!("Ingress {:?}", command);
+                        self.srv_tx
+                            .try_send(ConnectionCommand::IdentifiableCommand { from, command })
+                            .expect("should have enough buffer");
+                    } else {
+                        ctx.close(Some(CloseReason {
+                            code: CloseCode::Invalid,
+                            description: None,
+                        }));
+                    }
                 }
             }
             Ok(ws::Message::Close(_)) => {
                 if let ConnectionState::Connected(id) = self.state {
                     self.srv_tx
                         .try_send(ConnectionCommand::Disconnect { from: id })
-                        .unwrap();
+                        .expect("should have enough buffer");
                     // TODO: system 쪽에서 Disconnect 가 처리되었을 때 실제로 커넥션이 끊어지는 메커니즘
                 }
                 ctx.stop();
@@ -128,8 +133,7 @@ impl Handler<ConnectionActorMessage> for ConnectionActor {
                 ctx.close(None);
             }
             ConnectionEvent::IdentifiableEvent(event) => {
-                // TODO: unwrap
-                let serialized = bincode::serialize(event).unwrap();
+                let serialized = bincode::serialize(event).expect("must succeed");
                 ctx.binary(serialized);
             }
         }

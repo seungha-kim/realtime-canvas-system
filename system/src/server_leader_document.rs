@@ -26,10 +26,9 @@ impl ServerLeaderDocument {
 
     pub fn process_transaction(&mut self, tx: Transaction) -> Result<Transaction, ()> {
         let tx_id = tx.id;
-        // TODO: Err
-        self.storage.begin(tx.clone()).unwrap();
+        self.storage.begin(tx.clone());
         // TODO: validation
-        self.storage.finish(&tx_id, true).unwrap();
+        self.storage.finish(&tx_id, true).expect("must finish");
         Ok(tx)
     }
 }

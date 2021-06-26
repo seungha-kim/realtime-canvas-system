@@ -28,36 +28,37 @@ pub struct CanvasSystem {
 #[wasm_bindgen]
 impl CanvasSystem {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Self {
+    pub fn new() -> Result<CanvasSystem, JsValue> {
         utils::set_panic_hook();
-        console_log::init_with_level(log::Level::Trace).unwrap();
+        console_log::init_with_level(log::Level::Trace).map_err(|_| JsValue::NULL)?;
 
-        CanvasSystem {
+        Ok(CanvasSystem {
             command_id_source: Wrapping(0),
             pending_identifiable_commands: VecDeque::new(),
             session: None,
-        }
+        })
     }
 
-    pub fn create_command(&mut self, json: String) -> Box<[u8]> {
-        let system_command = serde_json::from_str::<SystemCommand>(&json).unwrap();
+    pub fn create_command(&mut self, json: String) -> Result<Box<[u8]>, JsValue> {
+        let system_command =
+            serde_json::from_str::<SystemCommand>(&json).map_err(|_| JsValue::NULL)?;
         let command_id = self.new_command_id();
         let identifiable_command = IdentifiableCommand {
             command_id,
             system_command,
         };
-        bincode::serialize(&identifiable_command)
-            .unwrap()
-            .into_boxed_slice()
+        Ok(bincode::serialize(&identifiable_command)
+            .map_err(|_| JsValue::NULL)?
+            .into_boxed_slice())
     }
 
-    pub fn convert_event_to_json(&self, bytes: &[u8]) -> String {
-        let event = bincode::deserialize::<IdentifiableEvent>(bytes).unwrap();
-        serde_json::to_string(&event).unwrap()
+    pub fn convert_event_to_json(&self, bytes: &[u8]) -> Result<String, JsValue> {
+        let event = bincode::deserialize::<IdentifiableEvent>(bytes).map_err(|_| JsValue::NULL)?;
+        serde_json::to_string(&event).map_err(|_| JsValue::NULL)
     }
 
-    pub fn handle_event_from_server(&mut self, bytes: &[u8]) {
-        let event = bincode::deserialize::<IdentifiableEvent>(bytes).unwrap();
+    pub fn handle_event_from_server(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
+        let event = bincode::deserialize::<IdentifiableEvent>(bytes).map_err(|_| JsValue::NULL)?;
         log::trace!("New event from server: {:?}", event);
         let system_event = match event {
             IdentifiableEvent::ByMyself { result, .. } => match result {
@@ -67,11 +68,12 @@ impl CanvasSystem {
             IdentifiableEvent::BySystem { system_event } => system_event,
         };
         match system_event {
-            SystemEvent::SessionEvent(session_event) => {
-                self.session
-                    .as_mut()
-                    .map(|s| s.handle_session_event(session_event));
-            }
+            SystemEvent::SessionEvent(session_event) => self
+                .session
+                .as_mut()
+                .map(|s| s.handle_session_event(session_event))
+                .map(|_| ())
+                .ok_or(JsValue::NULL),
             SystemEvent::JoinedSession {
                 session_id,
                 document_snapshot,
@@ -82,9 +84,11 @@ impl CanvasSystem {
                     document_snapshot,
                     session_snapshot,
                 ));
+                Ok(())
             }
             system_event => {
                 log::warn!("Unhandled SystemEvent: {:?}", system_event);
+                Err(JsValue::NULL)
             }
         }
     }
@@ -165,11 +169,12 @@ impl CanvasSystem {
         self.session.as_ref().map(|s| s.materialize_session())
     }
 
-    pub fn materialize_object(&self, uuid_str: String) -> Option<String> {
-        let object_id = uuid::Uuid::parse_str(&uuid_str).unwrap();
+    pub fn materialize_object(&self, uuid_str: String) -> Result<String, JsValue> {
+        let object_id = uuid::Uuid::parse_str(&uuid_str).map_err(|_| JsValue::NULL)?;
         self.session
             .as_ref()
-            .map(|s| s.materialize_object(&object_id))
+            .and_then(|s| s.materialize_object(&object_id))
+            .ok_or(JsValue::NULL)
     }
 
     pub fn consume_latest_session_snapshot(&mut self) -> Option<String> {

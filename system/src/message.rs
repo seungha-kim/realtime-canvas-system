@@ -74,6 +74,7 @@ pub enum SystemEvent {
 #[derive(Debug, Serialize, Deserialize)]
 pub enum SystemError {
     InvalidSessionId,
+    InvalidCommandForState,
     FatalError(FatalError),
     SessionError(SessionError),
 }

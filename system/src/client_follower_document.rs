@@ -43,7 +43,7 @@ impl ClientFollowerDocument {
         self.redo_stack.clear();
 
         let invalidated_object_ids = self.invalidated_object_ids(&tx);
-        self.storage.begin(tx.clone()).unwrap();
+        self.storage.begin(tx.clone());
         Ok(TransactionResult {
             invalidated_object_ids,
             transaction: tx,
@@ -53,10 +53,10 @@ impl ClientFollowerDocument {
     pub fn handle_transaction(&mut self, tx: Transaction) -> Result<TransactionResult, ()> {
         log::info!("Handle others transaction: {:?}", tx);
         let invalidated_object_ids = self.invalidated_object_ids(&tx);
-        // TODO: Err
-        self.storage.begin(tx.clone()).unwrap();
-        // TODO: Err
-        self.storage.finish(&tx.id, true).unwrap();
+        self.storage.begin(tx.clone());
+        self.storage
+            .finish(&tx.id, true)
+            .expect("tx from server must be valid");
         Ok(TransactionResult {
             invalidated_object_ids,
             transaction: tx,
@@ -67,14 +67,10 @@ impl ClientFollowerDocument {
         log::info!("Ack: {:?}", tx_id);
         if let Some(tx) = self.storage.get_tx(tx_id) {
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
-            if let Ok(tx) = self.storage.finish(tx_id, true) {
-                Ok(TransactionResult {
-                    invalidated_object_ids,
-                    transaction: tx,
-                })
-            } else {
-                Err(())
-            }
+            Ok(TransactionResult {
+                invalidated_object_ids,
+                transaction: self.storage.finish(tx_id, true).expect("must finish"),
+            })
         } else {
             Err(())
         }
@@ -106,7 +102,7 @@ impl ClientFollowerDocument {
             self.redo_stack.push(inverted);
 
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
-            self.storage.begin(tx.clone()).unwrap();
+            self.storage.begin(tx.clone());
             Ok(TransactionResult {
                 invalidated_object_ids,
                 transaction: tx,
@@ -124,7 +120,7 @@ impl ClientFollowerDocument {
             self.undo_stack.push(inverted);
 
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
-            self.storage.begin(tx.clone()).unwrap();
+            self.storage.begin(tx.clone());
             Ok(TransactionResult {
                 invalidated_object_ids,
                 transaction: tx,
@@ -190,7 +186,7 @@ impl Transaction {
                     ))
                 }
                 DocumentMutation::DeleteObject(object_id) => {
-                    let object_kind = r.get_object_kind(object_id).unwrap();
+                    let object_kind = r.get_object_kind(object_id).expect("must exist");
                     mutations.push(DocumentMutation::CreateObject(
                         object_id.clone(),
                         object_kind.clone(),
@@ -221,44 +217,26 @@ mod tests {
         let frame_id = uuid::Uuid::new_v4();
         let oval_id = uuid::Uuid::new_v4();
 
-        doc_storage
-            .process(Transaction::new(vec![
-                // frame
-                DocumentMutation::CreateObject(frame_id, ObjectKind::Frame),
-                DocumentMutation::UpsertProp(
-                    frame_id,
-                    PropKind::PosX,
-                    Some(PropValue::Float(10.0)),
-                ),
-                DocumentMutation::UpsertProp(
-                    frame_id,
-                    PropKind::PosY,
-                    Some(PropValue::Float(20.0)),
-                ),
-                DocumentMutation::UpsertProp(
-                    frame_id,
-                    PropKind::Parent,
-                    Some(PropValue::Reference(document_id)),
-                ),
-                // oval
-                DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::PosX,
-                    Some(PropValue::Float(100.0)),
-                ),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::PosY,
-                    Some(PropValue::Float(100.0)),
-                ),
-                DocumentMutation::UpsertProp(
-                    oval_id,
-                    PropKind::Parent,
-                    Some(PropValue::Reference(document_id)),
-                ),
-            ]))
-            .unwrap();
+        doc_storage.process(Transaction::new(vec![
+            // frame
+            DocumentMutation::CreateObject(frame_id, ObjectKind::Frame),
+            DocumentMutation::UpsertProp(frame_id, PropKind::PosX, Some(PropValue::Float(10.0))),
+            DocumentMutation::UpsertProp(frame_id, PropKind::PosY, Some(PropValue::Float(20.0))),
+            DocumentMutation::UpsertProp(
+                frame_id,
+                PropKind::Parent,
+                Some(PropValue::Reference(document_id)),
+            ),
+            // oval
+            DocumentMutation::CreateObject(oval_id, ObjectKind::Oval),
+            DocumentMutation::UpsertProp(oval_id, PropKind::PosX, Some(PropValue::Float(100.0))),
+            DocumentMutation::UpsertProp(oval_id, PropKind::PosY, Some(PropValue::Float(100.0))),
+            DocumentMutation::UpsertProp(
+                oval_id,
+                PropKind::Parent,
+                Some(PropValue::Reference(document_id)),
+            ),
+        ]));
         let snapshot = DocumentSnapshot::from(&doc_storage);
         let doc = ClientFollowerDocument::new(snapshot);
 
@@ -269,7 +247,7 @@ mod tests {
                 parent_id: frame_id,
             },
         )
-        .unwrap();
+        .expect("should work");
 
         let pos_x_after = tx
             .items
@@ -282,7 +260,7 @@ mod tests {
                 ) if object_id == &oval_id => Some(pos_x.clone()),
                 _ => None,
             })
-            .unwrap();
+            .expect("must exist");
         assert_eq!(pos_x_after, 90.0);
 
         let pos_y_after = tx
@@ -296,7 +274,7 @@ mod tests {
                 ) if object_id == &oval_id => Some(pos_y.clone()),
                 _ => None,
             })
-            .unwrap();
+            .expect("must exist");
         assert_eq!(pos_y_after, 80.0);
     }
 }
