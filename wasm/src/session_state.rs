@@ -3,7 +3,7 @@ use wasm_bindgen::__rt::std::collections::HashSet;
 use std::collections::VecDeque;
 use system::{
     serde_json, ClientFollowerDocument, DocumentCommand, DocumentSnapshot, LivePointerEvent,
-    Materialize, ObjectId, SessionEvent, SessionId, SessionSnapshot, Transaction,
+    Materialize, ObjectId, SessionEvent, SessionSnapshot, Transaction,
 };
 
 pub struct SessionState {
@@ -15,11 +15,7 @@ pub struct SessionState {
 }
 
 impl SessionState {
-    pub fn new(
-        _session_id: SessionId,
-        document_snapshot: DocumentSnapshot,
-        session_snapshot: SessionSnapshot,
-    ) -> Self {
+    pub fn new(document_snapshot: DocumentSnapshot, session_snapshot: SessionSnapshot) -> Self {
         Self {
             document: ClientFollowerDocument::new(document_snapshot),
             session_snapshot,

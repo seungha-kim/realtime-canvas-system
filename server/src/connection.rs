@@ -2,7 +2,7 @@ use actix::{Actor, ActorContext, AsyncContext, Handler, Message, Running, Stream
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 
-use system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent};
+use system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent, SessionId};
 
 use crate::connection_tx_storage::ConnectionTx;
 use crate::server::ServerTx;
@@ -12,6 +12,8 @@ use actix_web_actors::ws::{CloseCode, CloseReason};
 pub enum ConnectionCommand {
     Connect {
         tx: ConnectionTx,
+        // TODO: 파일 이름이 나와야 함. session_id 는 내부에서만 다뤄지는 정보여야 함.
+        session_id: SessionId,
     },
     Disconnect {
         from: ConnectionId,
@@ -41,6 +43,7 @@ enum ConnectionState {
 struct ConnectionActor {
     state: ConnectionState,
     srv_tx: ServerTx,
+    session_id: SessionId,
 }
 
 impl Actor for ConnectionActor {
@@ -50,7 +53,10 @@ impl Actor for ConnectionActor {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<ConnectionEvent>(32);
 
         self.srv_tx
-            .try_send(ConnectionCommand::Connect { tx })
+            .try_send(ConnectionCommand::Connect {
+                tx,
+                session_id: self.session_id,
+            })
             .expect("server must not be not closed yet");
 
         let addr = ctx.address().recipient();
@@ -145,10 +151,12 @@ pub async fn ws_index(
     stream: web::Payload,
     srv_tx: web::Data<ServerTx>,
 ) -> Result<HttpResponse, Error> {
+    let session_id: SessionId = req.match_info().get("session_id").unwrap().parse().unwrap();
     ws::start(
         ConnectionActor {
             srv_tx: srv_tx.get_ref().clone(),
             state: ConnectionState::Idle,
+            session_id,
         },
         &req,
         stream,

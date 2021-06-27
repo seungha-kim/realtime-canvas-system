@@ -13,7 +13,7 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .data(srv_tx.clone())
-            .route("/ws/", web::get().to(ws_index))
+            .route("/ws/{session_id}/", web::get().to(ws_index))
             .route("/admin/", web::get().to(admin_console_handler))
     })
     .bind("127.0.0.1:8080")?

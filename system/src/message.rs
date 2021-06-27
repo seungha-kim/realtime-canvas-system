@@ -28,8 +28,8 @@ pub struct FatalError {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum CommandResult {
-    SystemEvent(SystemEvent),
-    Error(SystemError),
+    SessionEvent(SessionEvent),
+    Error(SessionError),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -39,44 +39,14 @@ pub enum IdentifiableEvent {
         result: CommandResult,
     },
     BySystem {
-        system_event: SystemEvent,
+        session_event: SessionEvent,
     },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct IdentifiableCommand {
     pub command_id: CommandId,
-    pub system_command: SystemCommand,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum SystemCommand {
-    CreateSession,
-    JoinSession { session_id: SessionId },
-    SessionCommand(SessionCommand),
-    LeaveSession,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum SystemEvent {
-    Connected {
-        connection_id: ConnectionId,
-    },
-    JoinedSession {
-        session_id: SessionId,
-        session_snapshot: SessionSnapshot,
-        document_snapshot: DocumentSnapshot,
-    },
-    LeftSession,
-    SessionEvent(SessionEvent),
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub enum SystemError {
-    InvalidSessionId,
-    InvalidCommandForState,
-    FatalError(FatalError),
-    SessionError(SessionError),
+    pub session_command: SessionCommand,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -87,6 +57,11 @@ pub enum SessionCommand {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum SessionEvent {
+    Init {
+        session_id: SessionId,
+        session_snapshot: SessionSnapshot,
+        document_snapshot: DocumentSnapshot,
+    },
     LivePointer(LivePointerEvent),
     SessionStateChanged(SessionSnapshot),
     SomeoneJoined(ConnectionId),

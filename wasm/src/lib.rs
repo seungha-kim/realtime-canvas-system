@@ -6,7 +6,7 @@ use wasm_bindgen::prelude::*;
 use session_state::SessionState;
 use system::{
     bincode, serde_json, uuid, CommandId, CommandResult, IdentifiableCommand, IdentifiableEvent,
-    SessionCommand, SystemCommand, SystemEvent,
+    SessionCommand, SessionEvent,
 };
 
 mod session_state;
@@ -22,30 +22,44 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 pub struct CanvasSystem {
     command_id_source: Wrapping<CommandId>,
     pending_identifiable_commands: VecDeque<IdentifiableCommand>,
-    session: Option<SessionState>,
+    session: SessionState,
 }
 
 #[wasm_bindgen]
 impl CanvasSystem {
     #[wasm_bindgen(constructor)]
-    pub fn new() -> Result<CanvasSystem, JsValue> {
+    pub fn new(bytes: &[u8]) -> Result<CanvasSystem, JsValue> {
         utils::set_panic_hook();
         console_log::init_with_level(log::Level::Trace).map_err(|_| JsValue::NULL)?;
 
-        Ok(CanvasSystem {
-            command_id_source: Wrapping(0),
-            pending_identifiable_commands: VecDeque::new(),
-            session: None,
-        })
+        let event = bincode::deserialize::<IdentifiableEvent>(bytes).map_err(|_| JsValue::NULL)?;
+        log::trace!("Initializing: {:?}", event);
+        if let IdentifiableEvent::BySystem {
+            session_event:
+                SessionEvent::Init {
+                    document_snapshot,
+                    session_snapshot,
+                    ..
+                },
+        } = event
+        {
+            Ok(CanvasSystem {
+                command_id_source: Wrapping(0),
+                pending_identifiable_commands: VecDeque::new(),
+                session: SessionState::new(document_snapshot, session_snapshot),
+            })
+        } else {
+            Err(JsValue::NULL)
+        }
     }
 
     pub fn create_command(&mut self, json: String) -> Result<Box<[u8]>, JsValue> {
-        let system_command =
-            serde_json::from_str::<SystemCommand>(&json).map_err(|_| JsValue::NULL)?;
+        let session_command =
+            serde_json::from_str::<SessionCommand>(&json).map_err(|_| JsValue::NULL)?;
         let command_id = self.new_command_id();
         let identifiable_command = IdentifiableCommand {
             command_id,
-            system_command,
+            session_command,
         };
         Ok(bincode::serialize(&identifiable_command)
             .map_err(|_| JsValue::NULL)?
@@ -60,37 +74,16 @@ impl CanvasSystem {
     pub fn handle_event_from_server(&mut self, bytes: &[u8]) -> Result<(), JsValue> {
         let event = bincode::deserialize::<IdentifiableEvent>(bytes).map_err(|_| JsValue::NULL)?;
         log::trace!("New event from server: {:?}", event);
-        let system_event = match event {
+        let session_event = match event {
             IdentifiableEvent::ByMyself { result, .. } => match result {
-                CommandResult::SystemEvent(system_event) => system_event,
+                CommandResult::SessionEvent(session_event) => session_event,
                 CommandResult::Error(system_error) => panic!("SystemError: {:?}", system_error),
             },
-            IdentifiableEvent::BySystem { system_event } => system_event,
+            IdentifiableEvent::BySystem { session_event } => session_event,
         };
-        match system_event {
-            SystemEvent::SessionEvent(session_event) => self
-                .session
-                .as_mut()
-                .map(|s| s.handle_session_event(session_event))
-                .map(|_| ())
-                .ok_or(JsValue::NULL),
-            SystemEvent::JoinedSession {
-                session_id,
-                document_snapshot,
-                session_snapshot,
-            } => {
-                self.session = Some(SessionState::new(
-                    session_id,
-                    document_snapshot,
-                    session_snapshot,
-                ));
-                Ok(())
-            }
-            system_event => {
-                log::warn!("Unhandled SystemEvent: {:?}", system_event);
-                Err(JsValue::NULL)
-            }
-        }
+        self.session
+            .handle_session_event(session_event)
+            .map_err(|_| JsValue::NULL)
     }
 
     pub fn last_command_id(&self) -> CommandId {
@@ -106,48 +99,46 @@ impl CanvasSystem {
     }
 
     pub fn push_document_command(&mut self, json: String) {
+        if let Ok(tx) = self.session.push_document_command(json) {
+            let command_id = self.new_command_id();
+            self.pending_identifiable_commands
+                .push_back(IdentifiableCommand {
+                    command_id,
+                    session_command: SessionCommand::Transaction(tx),
+                });
+        }
+    }
+
+    pub fn undo(&mut self) -> Result<(), JsValue> {
         self.session
-            .as_mut()
-            .and_then(|s| s.push_document_command(json).ok())
+            .undo()
             .map(|tx| {
                 let command_id = self.new_command_id();
                 self.pending_identifiable_commands
                     .push_back(IdentifiableCommand {
                         command_id,
-                        system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(
-                            tx,
-                        )),
+                        session_command: SessionCommand::Transaction(tx),
                     });
-            });
+            })
+            .map_err(|_| JsValue::NULL)
     }
 
-    pub fn undo(&mut self) {
-        self.session.as_mut().and_then(|s| s.undo().ok()).map(|tx| {
-            let command_id = self.new_command_id();
-            self.pending_identifiable_commands
-                .push_back(IdentifiableCommand {
-                    command_id,
-                    system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(tx)),
-                });
-        });
-    }
-
-    pub fn redo(&mut self) {
-        self.session.as_mut().and_then(|s| s.redo().ok()).map(|tx| {
-            let command_id = self.new_command_id();
-            self.pending_identifiable_commands
-                .push_back(IdentifiableCommand {
-                    command_id,
-                    system_command: SystemCommand::SessionCommand(SessionCommand::Transaction(tx)),
-                });
-        });
+    pub fn redo(&mut self) -> Result<(), JsValue> {
+        self.session
+            .redo()
+            .map(|tx| {
+                let command_id = self.new_command_id();
+                self.pending_identifiable_commands
+                    .push_back(IdentifiableCommand {
+                        command_id,
+                        session_command: SessionCommand::Transaction(tx),
+                    });
+            })
+            .map_err(|_| JsValue::NULL)
     }
 
     pub fn consume_invalidated_object_ids(&mut self) -> String {
-        self.session
-            .as_mut()
-            .map(|s| s.consume_invalidated_object_ids())
-            .unwrap_or("[]".into())
+        self.session.consume_invalidated_object_ids()
     }
 
     pub fn consume_pending_identifiable_command(&mut self) -> Option<Box<[u8]>> {
@@ -161,31 +152,26 @@ impl CanvasSystem {
             })
     }
 
-    pub fn materialize_document(&self) -> Option<String> {
-        self.session.as_ref().map(|s| s.materialize_document())
+    pub fn materialize_document(&self) -> String {
+        self.session.materialize_document()
     }
 
-    pub fn materialize_session(&self) -> Option<String> {
-        self.session.as_ref().map(|s| s.materialize_session())
+    pub fn materialize_session(&self) -> String {
+        self.session.materialize_session()
     }
 
     pub fn materialize_object(&self, uuid_str: String) -> Result<String, JsValue> {
         let object_id = uuid::Uuid::parse_str(&uuid_str).map_err(|_| JsValue::NULL)?;
         self.session
-            .as_ref()
-            .and_then(|s| s.materialize_object(&object_id))
+            .materialize_object(&object_id)
             .ok_or(JsValue::NULL)
     }
 
     pub fn consume_latest_session_snapshot(&mut self) -> Option<String> {
-        self.session
-            .as_mut()
-            .and_then(|s| s.consume_latest_session_snapshot())
+        self.session.consume_latest_session_snapshot()
     }
 
-    pub fn consume_live_pointer_events(&mut self) -> Option<String> {
-        self.session
-            .as_mut()
-            .map(|s| s.consume_live_pointer_events())
+    pub fn consume_live_pointer_events(&mut self) -> String {
+        self.session.consume_live_pointer_events()
     }
 }
