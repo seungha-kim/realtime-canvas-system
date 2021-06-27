@@ -151,14 +151,18 @@ pub async fn ws_index(
     stream: web::Payload,
     srv_tx: web::Data<ServerTx>,
 ) -> Result<HttpResponse, Error> {
-    let session_id: SessionId = req.match_info().get("session_id").unwrap().parse().unwrap();
-    ws::start(
-        ConnectionActor {
-            srv_tx: srv_tx.get_ref().clone(),
-            state: ConnectionState::Idle,
-            session_id,
-        },
-        &req,
-        stream,
-    )
+    let session_id_str = req.match_info().get("session_id").unwrap_or("").to_owned();
+    if let Some(session_id) = session_id_str.parse::<SessionId>().ok() {
+        ws::start(
+            ConnectionActor {
+                srv_tx: srv_tx.get_ref().clone(),
+                state: ConnectionState::Idle,
+                session_id,
+            },
+            &req,
+            stream,
+        )
+    } else {
+        Err(actix_web::error::ErrorBadRequest(session_id_str))
+    }
 }
