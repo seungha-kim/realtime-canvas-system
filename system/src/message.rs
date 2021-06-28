@@ -6,6 +6,7 @@ pub type SessionId = u32;
 pub type CommandId = u16;
 pub type TransactionId = uuid::Uuid;
 pub type ObjectId = uuid::Uuid;
+pub type FileId = uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Color {

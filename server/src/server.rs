@@ -26,16 +26,13 @@ impl Server {
 
     async fn handle_connection_command(&mut self, command: &ConnectionCommand) {
         match command {
-            ConnectionCommand::Connect { tx, session_id } => {
+            ConnectionCommand::Connect { tx, file_id } => {
                 let mut tx = tx.clone();
 
-                let connection_id = if self.server_state.has_session(session_id) {
-                    self.server_state.join_session(session_id).unwrap()
+                let (session_id, connection_id) = if self.server_state.has_session(file_id) {
+                    self.server_state.join_session(file_id).unwrap()
                 } else {
-                    self.server_state
-                        .create_session(session_id.clone())
-                        .map(|(_, connection_id)| connection_id)
-                        .unwrap()
+                    self.server_state.create_session(file_id).unwrap()
                 };
 
                 let session = self

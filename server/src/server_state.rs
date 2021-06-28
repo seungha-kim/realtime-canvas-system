@@ -1,7 +1,7 @@
 use crate::session::Session;
 use std::collections::HashMap;
 use std::num::Wrapping;
-use system::{ConnectionId, SessionId};
+use system::{ConnectionId, FileId, SessionId};
 
 pub struct ServerState {
     pub connection_id_source: Wrapping<ConnectionId>,
@@ -9,10 +9,12 @@ pub struct ServerState {
 
     pub session_id_source: Wrapping<SessionId>,
     pub sessions: HashMap<SessionId, Session>,
+    pub file_sessions: HashMap<FileId, SessionId>,
 }
 
 #[derive(Debug)]
 pub enum ServerError {
+    NoSessionForFile,
     InvalidSessionId,
     InvalidCommandForState,
 }
@@ -25,37 +27,47 @@ impl ServerState {
 
             session_id_source: Wrapping(0),
             sessions: HashMap::new(),
+            file_sessions: HashMap::new(),
         }
     }
 
-    pub fn has_session(&self, session_id: &SessionId) -> bool {
-        self.sessions.contains_key(session_id)
+    pub fn has_session(&self, file_id: &FileId) -> bool {
+        self.file_sessions.contains_key(file_id)
     }
 
     pub fn create_session(
         &mut self,
-        session_id: SessionId,
+        file_id: &FileId,
     ) -> Result<(SessionId, ConnectionId), ServerError> {
-        // TODO: 파일 개념이 생기고 나면 session_id 을 밖에서 받는 일은 없어야 함
-        self.sessions.insert(session_id, Session::new());
-        self.join_session(&session_id)
-            .map(|connection_id| (session_id, connection_id))
+        let session_id = self.new_session_id();
+        self.file_sessions
+            .insert(file_id.clone(), session_id.clone());
+        self.sessions
+            .insert(session_id, Session::new(file_id.clone()));
+        self.join_session(file_id)
     }
 
-    pub fn join_session(&mut self, session_id: &SessionId) -> Result<ConnectionId, ServerError> {
-        let connection_id = self.new_connection_id();
-        if self
-            .sessions
-            .get_mut(&session_id)
-            .map(|s| s.connections.push(connection_id.clone()))
-            .is_none()
-        {
-            Err(ServerError::InvalidSessionId)
+    pub fn join_session(
+        &mut self,
+        file_id: &FileId,
+    ) -> Result<(SessionId, ConnectionId), ServerError> {
+        if let Some(session_id) = self.file_sessions.get(file_id).cloned() {
+            let connection_id = self.new_connection_id();
+            if self
+                .sessions
+                .get_mut(&session_id)
+                .map(|s| s.connections.push(connection_id.clone()))
+                .is_none()
+            {
+                Err(ServerError::InvalidSessionId)
+            } else {
+                self.connection_locations
+                    .insert(connection_id.clone(), session_id.clone());
+                log::info!("Connection {} joined session {}", connection_id, session_id);
+                Ok((session_id, connection_id))
+            }
         } else {
-            self.connection_locations
-                .insert(connection_id.clone(), session_id.clone());
-            log::info!("Connection {} joined session {}", connection_id, session_id);
-            Ok(connection_id)
+            Err(ServerError::NoSessionForFile)
         }
     }
 
@@ -71,7 +83,7 @@ impl ServerState {
                 .map(|s| s.connections.is_empty())
                 .unwrap_or(false)
             {
-                self.sessions.remove(&session_id);
+                self.terminate_session(&session_id);
             }
             Some(session_id)
         } else {
@@ -94,21 +106,26 @@ impl ServerState {
         self.connection_id_source.0
     }
 
-    #[allow(dead_code)]
     fn new_session_id(&mut self) -> SessionId {
         self.session_id_source += Wrapping(1);
         self.session_id_source.0
+    }
+
+    fn terminate_session(&mut self, session_id: &SessionId) {
+        let session = self.sessions.remove(&session_id).unwrap();
+        self.file_sessions.remove(&session.file_id);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use system::uuid::Uuid;
 
     #[test]
     fn it_remove_session_when_all_connections_disconnect() {
         let mut state = ServerState::new();
-        let (session_id, connection_id) = state.create_session().expect("");
+        let (_, connection_id) = state.create_session(&Uuid::new_v4()).expect("");
         state.leave_session(&connection_id).expect("");
         assert!(state.sessions.is_empty())
     }

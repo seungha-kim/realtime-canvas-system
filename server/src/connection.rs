@@ -2,18 +2,19 @@ use actix::{Actor, ActorContext, AsyncContext, Handler, Message, Running, Stream
 use actix_web::{web, Error, HttpRequest, HttpResponse};
 use actix_web_actors::ws;
 
-use system::{bincode, ConnectionId, IdentifiableCommand, IdentifiableEvent, SessionId};
+use system::{bincode, ConnectionId, FileId, IdentifiableCommand, IdentifiableEvent};
 
 use crate::connection_tx_storage::ConnectionTx;
+use crate::document_file::get_document_file;
 use crate::server::ServerTx;
 use actix_web_actors::ws::{CloseCode, CloseReason};
+use system::uuid::Uuid;
 
 #[derive(Debug)]
 pub enum ConnectionCommand {
     Connect {
         tx: ConnectionTx,
-        // TODO: 파일 이름이 나와야 함. session_id 는 내부에서만 다뤄지는 정보여야 함.
-        session_id: SessionId,
+        file_id: FileId,
     },
     Disconnect {
         from: ConnectionId,
@@ -43,7 +44,7 @@ enum ConnectionState {
 struct ConnectionActor {
     state: ConnectionState,
     srv_tx: ServerTx,
-    session_id: SessionId,
+    file_id: FileId,
 }
 
 impl Actor for ConnectionActor {
@@ -55,7 +56,7 @@ impl Actor for ConnectionActor {
         self.srv_tx
             .try_send(ConnectionCommand::Connect {
                 tx,
-                session_id: self.session_id,
+                file_id: self.file_id.clone(),
             })
             .expect("server must not be not closed yet");
 
@@ -151,18 +152,22 @@ pub async fn ws_index(
     stream: web::Payload,
     srv_tx: web::Data<ServerTx>,
 ) -> Result<HttpResponse, Error> {
-    let session_id_str = req.match_info().get("session_id").unwrap_or("").to_owned();
-    if let Some(session_id) = session_id_str.parse::<SessionId>().ok() {
-        ws::start(
-            ConnectionActor {
-                srv_tx: srv_tx.get_ref().clone(),
-                state: ConnectionState::Idle,
-                session_id,
-            },
-            &req,
-            stream,
-        )
+    let file_id_str = req.match_info().get("file_id").unwrap_or("").to_owned();
+    if let Some(file_id) = file_id_str.parse::<Uuid>().ok() {
+        if let Ok(_) = get_document_file(&file_id).await {
+            ws::start(
+                ConnectionActor {
+                    srv_tx: srv_tx.get_ref().clone(),
+                    state: ConnectionState::Idle,
+                    file_id,
+                },
+                &req,
+                stream,
+            )
+        } else {
+            Err(actix_web::error::ErrorBadRequest(file_id_str))
+        }
     } else {
-        Err(actix_web::error::ErrorBadRequest(session_id_str))
+        Err(actix_web::error::ErrorBadRequest(file_id_str))
     }
 }
