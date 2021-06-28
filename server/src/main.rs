@@ -8,8 +8,13 @@ async fn main() -> std::io::Result<()> {
 
     let srv_tx = spawn_server();
 
-    HttpServer::new(move || App::new().data(srv_tx.clone()).configure(root))
-        .bind("127.0.0.1:8080")?
-        .run()
-        .await
+    HttpServer::new(move || {
+        App::new()
+            .wrap(actix_cors::Cors::permissive())
+            .data(srv_tx.clone())
+            .configure(root)
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
 }
