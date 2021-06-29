@@ -23,7 +23,7 @@ struct Record {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DocumentStorage {
+pub struct Document {
     document_id: uuid::Uuid,
     objects: HashMap<ObjectId, ObjectKind>,
 
@@ -32,12 +32,12 @@ pub struct DocumentStorage {
     idx_by_object_id: HashMap<ObjectId, Vec<RecordId>>,
 }
 
-impl DocumentStorage {
+impl Document {
     pub fn new() -> Self {
         let document_id = uuid::Uuid::new_v4();
         let mut objects = HashMap::new();
         objects.insert(document_id.clone(), ObjectKind::Document);
-        DocumentStorage {
+        Document {
             document_id,
             objects,
 
@@ -150,7 +150,7 @@ impl DocumentStorage {
     }
 }
 
-impl PropReadable for DocumentStorage {
+impl PropReadable for Document {
     fn get_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&PropValue> {
         self.idx_by_object_id_and_prop_kind
             .get(&(object_id.clone(), prop_kind.clone()))
@@ -188,7 +188,7 @@ impl PropReadable for DocumentStorage {
     }
 }
 
-impl DocumentReadable for DocumentStorage {
+impl DocumentReadable for Document {
     fn document_id(&self) -> Uuid {
         self.document_id
     }
@@ -211,15 +211,15 @@ impl std::fmt::Debug for DocumentSnapshot {
     }
 }
 
-impl From<&DocumentStorage> for DocumentSnapshot {
-    fn from(d: &DocumentStorage) -> Self {
+impl From<&Document> for DocumentSnapshot {
+    fn from(d: &Document) -> Self {
         DocumentSnapshot {
             content: bincode::serialize(d).expect("compatible"),
         }
     }
 }
 
-impl From<&DocumentSnapshot> for DocumentStorage {
+impl From<&DocumentSnapshot> for Document {
     fn from(snapshot: &DocumentSnapshot) -> Self {
         bincode::deserialize(&snapshot.content).expect("compatible")
     }

@@ -2,20 +2,20 @@ use super::message::*;
 use crate::document_command_transaction::convert_command_to_tx;
 use crate::materialize::Materialize;
 use crate::traits::DocumentReadable;
-use crate::transactional_document::TransactionalStorage;
+use crate::transactional_document::TransactionalDocument;
 use crate::{DocumentCommand, DocumentSnapshot, PropReadable};
 use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct ClientFollowerDocument {
-    storage: TransactionalStorage,
+    tx_document: TransactionalDocument,
     undo_stack: Vec<Transaction>,
     redo_stack: Vec<Transaction>,
 }
 
-impl Materialize<TransactionalStorage> for ClientFollowerDocument {
-    fn readable(&self) -> &TransactionalStorage {
-        &self.storage
+impl Materialize<TransactionalDocument> for ClientFollowerDocument {
+    fn readable(&self) -> &TransactionalDocument {
+        &self.tx_document
     }
 }
 
@@ -26,10 +26,13 @@ pub struct TransactionResult {
 
 impl ClientFollowerDocument {
     pub fn new(snapshot: DocumentSnapshot) -> Self {
-        let storage = TransactionalStorage::from_snapshot(snapshot);
-        log::debug!("ClientFollowerDocument created: {}", storage.document_id());
+        let tx_document = TransactionalDocument::from_snapshot(snapshot);
+        log::debug!(
+            "ClientFollowerDocument created: {}",
+            tx_document.document_id()
+        );
         Self {
-            storage,
+            tx_document,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
@@ -37,13 +40,13 @@ impl ClientFollowerDocument {
 
     pub fn handle_command(&mut self, command: DocumentCommand) -> Result<TransactionResult, ()> {
         log::debug!("Handle document command: {:?}", command);
-        let tx = convert_command_to_tx(&self.storage, command)?;
+        let tx = convert_command_to_tx(&self.tx_document, command)?;
 
-        self.undo_stack.push(tx.inverted(&self.storage));
+        self.undo_stack.push(tx.inverted(&self.tx_document));
         self.redo_stack.clear();
 
         let invalidated_object_ids = self.invalidated_object_ids(&tx);
-        self.storage.begin(tx.clone());
+        self.tx_document.begin(tx.clone());
         Ok(TransactionResult {
             invalidated_object_ids,
             transaction: tx,
@@ -53,8 +56,8 @@ impl ClientFollowerDocument {
     pub fn handle_transaction(&mut self, tx: Transaction) -> Result<TransactionResult, ()> {
         log::info!("Handle others transaction: {:?}", tx);
         let invalidated_object_ids = self.invalidated_object_ids(&tx);
-        self.storage.begin(tx.clone());
-        self.storage
+        self.tx_document.begin(tx.clone());
+        self.tx_document
             .finish(&tx.id, true)
             .expect("tx from server must be valid");
         Ok(TransactionResult {
@@ -65,11 +68,11 @@ impl ClientFollowerDocument {
 
     pub fn handle_ack(&mut self, tx_id: &TransactionId) -> Result<TransactionResult, ()> {
         log::info!("Ack: {:?}", tx_id);
-        if let Some(tx) = self.storage.get_tx(tx_id) {
+        if let Some(tx) = self.tx_document.get_tx(tx_id) {
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
             Ok(TransactionResult {
                 invalidated_object_ids,
-                transaction: self.storage.finish(tx_id, true).expect("must finish"),
+                transaction: self.tx_document.finish(tx_id, true).expect("must finish"),
             })
         } else {
             Err(())
@@ -78,9 +81,9 @@ impl ClientFollowerDocument {
 
     pub fn handle_nack(&mut self, tx_id: &TransactionId) -> Result<TransactionResult, ()> {
         log::info!("Nack: {:?}", tx_id);
-        if let Some(tx) = self.storage.get_tx(tx_id) {
+        if let Some(tx) = self.tx_document.get_tx(tx_id) {
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
-            if let Ok(tx) = self.storage.finish(tx_id, false) {
+            if let Ok(tx) = self.tx_document.finish(tx_id, false) {
                 self.undo_stack.retain(|item| &item.id != tx_id);
                 self.redo_stack.retain(|item| &item.id != tx_id);
                 Ok(TransactionResult {
@@ -102,7 +105,7 @@ impl ClientFollowerDocument {
             self.redo_stack.push(inverted);
 
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
-            self.storage.begin(tx.clone());
+            self.tx_document.begin(tx.clone());
             Ok(TransactionResult {
                 invalidated_object_ids,
                 transaction: tx,
@@ -120,7 +123,7 @@ impl ClientFollowerDocument {
             self.undo_stack.push(inverted);
 
             let invalidated_object_ids = self.invalidated_object_ids(&tx);
-            self.storage.begin(tx.clone());
+            self.tx_document.begin(tx.clone());
             Ok(TransactionResult {
                 invalidated_object_ids,
                 transaction: tx,
@@ -207,17 +210,17 @@ impl Transaction {
 mod tests {
     use super::*;
     use crate::document_command_transaction::convert_command_to_tx;
-    use crate::DocumentStorage;
+    use crate::Document;
 
     #[test]
     fn it_should_preserve_global_transform_when_changing_parent() {
-        let mut doc_storage = DocumentStorage::new();
+        let mut document = Document::new();
 
-        let document_id = doc_storage.document_id();
+        let document_id = document.document_id();
         let frame_id = uuid::Uuid::new_v4();
         let oval_id = uuid::Uuid::new_v4();
 
-        doc_storage.process(Transaction::new(vec![
+        document.process(Transaction::new(vec![
             // frame
             DocumentMutation::CreateObject(frame_id, ObjectKind::Frame),
             DocumentMutation::UpsertProp(frame_id, PropKind::PosX, Some(PropValue::Float(10.0))),
@@ -237,11 +240,11 @@ mod tests {
                 Some(PropValue::Reference(document_id)),
             ),
         ]));
-        let snapshot = DocumentSnapshot::from(&doc_storage);
+        let snapshot = DocumentSnapshot::from(&document);
         let doc = ClientFollowerDocument::new(snapshot);
 
         let tx = convert_command_to_tx(
-            &doc.storage,
+            &doc.tx_document,
             DocumentCommand::UpdateParent {
                 id: oval_id,
                 parent_id: frame_id,

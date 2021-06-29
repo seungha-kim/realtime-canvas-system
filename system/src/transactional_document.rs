@@ -6,15 +6,15 @@ use super::transaction_manager::*;
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub struct TransactionalStorage {
-    doc_storage: DocumentStorage,
+pub struct TransactionalDocument {
+    document: Document,
     tx_manager: TransactionManager,
 }
 
-impl TransactionalStorage {
+impl TransactionalDocument {
     pub fn new() -> Self {
         Self {
-            doc_storage: DocumentStorage::new(),
+            document: Document::new(),
             tx_manager: TransactionManager::new(),
         }
     }
@@ -25,13 +25,13 @@ impl TransactionalStorage {
 
     pub fn from_snapshot(snapshot: DocumentSnapshot) -> Self {
         Self {
-            doc_storage: (&snapshot).into(),
+            document: (&snapshot).into(),
             tx_manager: TransactionManager::new(),
         }
     }
 }
 
-impl TransactionalStorage {
+impl TransactionalDocument {
     pub fn begin(&mut self, tx: Transaction) {
         self.tx_manager.push(tx.clone());
     }
@@ -40,7 +40,7 @@ impl TransactionalStorage {
         if let Some(tx) = self.tx_manager.remove(tx_id) {
             if commit {
                 // TODO: Err
-                self.doc_storage.process(tx.clone());
+                self.document.process(tx.clone());
             }
             Ok(tx)
         } else {
@@ -50,15 +50,15 @@ impl TransactionalStorage {
     }
 }
 
-impl PropReadable for TransactionalStorage {
+impl PropReadable for TransactionalDocument {
     fn get_prop(&self, object_id: &ObjectId, prop_kind: &PropKind) -> Option<&PropValue> {
-        let from_kv = self.doc_storage.get_prop(object_id, prop_kind);
+        let from_kv = self.document.get_prop(object_id, prop_kind);
         let from_tx = self.tx_manager.get_prop(object_id, prop_kind);
         from_tx.or(from_kv)
     }
 
     fn get_object_kind(&self, object_id: &ObjectId) -> Option<&ObjectKind> {
-        let from_kv = self.doc_storage.get_object_kind(object_id);
+        let from_kv = self.document.get_object_kind(object_id);
         let from_tx = self.tx_manager.get_object_kind(object_id);
         from_tx.or(from_kv)
     }
@@ -66,11 +66,11 @@ impl PropReadable for TransactionalStorage {
     fn is_deleted(&self, object_id: &ObjectId) -> Option<bool> {
         self.tx_manager
             .is_deleted(object_id)
-            .or(self.doc_storage.is_deleted(object_id))
+            .or(self.document.is_deleted(object_id))
     }
 
     fn get_all_props_of_object(&self, object_id: &ObjectId) -> Vec<(PropKind, Option<PropValue>)> {
-        let from_kv = self.doc_storage.get_all_props_of_object(object_id);
+        let from_kv = self.document.get_all_props_of_object(object_id);
         let from_tx = self.tx_manager.get_all_props_of_object(object_id);
         let mut result = from_kv.clone();
 
@@ -99,19 +99,19 @@ impl PropReadable for TransactionalStorage {
 
     fn containing_objects(&self) -> Box<dyn Iterator<Item = &ObjectId> + '_> {
         Box::new(
-            self.doc_storage
+            self.document
                 .containing_objects()
                 .chain(self.tx_manager.containing_objects()),
         )
     }
 }
 
-impl DocumentReadable for TransactionalStorage {
+impl DocumentReadable for TransactionalDocument {
     fn document_id(&self) -> Uuid {
-        self.doc_storage.document_id()
+        self.document.document_id()
     }
 
     fn snapshot(&self) -> DocumentSnapshot {
-        self.doc_storage.snapshot()
+        self.document.snapshot()
     }
 }

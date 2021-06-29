@@ -1,5 +1,5 @@
 use crate::materialize::Materialize;
-use crate::transactional_document::TransactionalStorage;
+use crate::transactional_document::TransactionalDocument;
 
 use super::message::*;
 use crate::document::DocumentSnapshot;
@@ -8,27 +8,27 @@ use uuid::Uuid;
 
 #[derive(Debug)]
 pub struct ServerLeaderDocument {
-    storage: TransactionalStorage,
+    tx_document: TransactionalDocument,
 }
 
-impl Materialize<TransactionalStorage> for ServerLeaderDocument {
-    fn readable(&self) -> &TransactionalStorage {
-        &self.storage
+impl Materialize<TransactionalDocument> for ServerLeaderDocument {
+    fn readable(&self) -> &TransactionalDocument {
+        &self.tx_document
     }
 }
 
 impl ServerLeaderDocument {
     pub fn new() -> Self {
         Self {
-            storage: TransactionalStorage::new(),
+            tx_document: TransactionalDocument::new(),
         }
     }
 
     pub fn process_transaction(&mut self, tx: Transaction) -> Result<Transaction, ()> {
         let tx_id = tx.id;
-        self.storage.begin(tx.clone());
+        self.tx_document.begin(tx.clone());
         // TODO: validation
-        self.storage.finish(&tx_id, true).expect("must finish");
+        self.tx_document.finish(&tx_id, true).expect("must finish");
         Ok(tx)
     }
 }
@@ -39,6 +39,6 @@ impl DocumentReadable for ServerLeaderDocument {
     }
 
     fn snapshot(&self) -> DocumentSnapshot {
-        self.storage.snapshot()
+        self.tx_document.snapshot()
     }
 }
