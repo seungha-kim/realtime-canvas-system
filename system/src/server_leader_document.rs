@@ -4,6 +4,7 @@ use crate::transactional_document::TransactionalDocument;
 use super::message::*;
 use crate::document::DocumentSnapshot;
 use crate::traits::DocumentReadable;
+use crate::Document;
 use uuid::Uuid;
 
 #[derive(Debug)]
@@ -18,9 +19,9 @@ impl Materialize<TransactionalDocument> for ServerLeaderDocument {
 }
 
 impl ServerLeaderDocument {
-    pub fn new() -> Self {
+    pub fn new(document: Document) -> Self {
         Self {
-            tx_document: TransactionalDocument::new(),
+            tx_document: TransactionalDocument::new(document),
         }
     }
 
@@ -30,6 +31,10 @@ impl ServerLeaderDocument {
         // TODO: validation
         self.tx_document.finish(&tx_id, true).expect("must finish");
         Ok(tx)
+    }
+
+    pub fn document(&self) -> &Document {
+        self.tx_document.document()
     }
 }
 

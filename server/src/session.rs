@@ -1,4 +1,4 @@
-use system::{ConnectionId, FileId, ServerLeaderDocument, SessionSnapshot};
+use system::{ConnectionId, Document, FileId, ServerLeaderDocument, SessionSnapshot};
 
 pub struct Session {
     pub file_id: FileId,
@@ -7,11 +7,11 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(file_id: FileId) -> Self {
+    pub fn new(file_id: FileId, document: Document) -> Self {
         Self {
             file_id,
             connections: Vec::new(),
-            document: ServerLeaderDocument::new(),
+            document: ServerLeaderDocument::new(document),
         }
     }
 

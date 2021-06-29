@@ -12,9 +12,9 @@ pub struct TransactionalDocument {
 }
 
 impl TransactionalDocument {
-    pub fn new() -> Self {
+    pub fn new(document: Document) -> Self {
         Self {
-            document: Document::new(),
+            document,
             tx_manager: TransactionManager::new(),
         }
     }
@@ -28,6 +28,10 @@ impl TransactionalDocument {
             document: (&snapshot).into(),
             tx_manager: TransactionManager::new(),
         }
+    }
+
+    pub fn document(&self) -> &Document {
+        &self.document
     }
 }
 

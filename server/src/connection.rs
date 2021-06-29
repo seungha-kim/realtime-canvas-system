@@ -5,7 +5,7 @@ use actix_web_actors::ws;
 use system::{bincode, ConnectionId, FileId, IdentifiableCommand, IdentifiableEvent};
 
 use crate::connection_tx_storage::ConnectionTx;
-use crate::document_file::get_document_file;
+use crate::document_file::get_document_file_meta;
 use crate::server::ServerTx;
 use actix_web_actors::ws::{CloseCode, CloseReason};
 use system::uuid::Uuid;
@@ -154,7 +154,7 @@ pub async fn ws_index(
 ) -> Result<HttpResponse, Error> {
     let file_id_str = req.match_info().get("file_id").unwrap_or("").to_owned();
     if let Some(file_id) = file_id_str.parse::<Uuid>().ok() {
-        if let Ok(_) = get_document_file(&file_id).await {
+        if let Ok(_) = get_document_file_meta(&file_id).await {
             ws::start(
                 ConnectionActor {
                     srv_tx: srv_tx.get_ref().clone(),

@@ -203,6 +203,16 @@ pub struct DocumentSnapshot {
     content: Vec<u8>,
 }
 
+impl DocumentSnapshot {
+    pub fn content(&self) -> &[u8] {
+        &self.content
+    }
+
+    pub fn from_vec(content: Vec<u8>) -> Self {
+        Self { content }
+    }
+}
+
 impl std::fmt::Debug for DocumentSnapshot {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("DocumentSnapshot")
@@ -214,7 +224,7 @@ impl std::fmt::Debug for DocumentSnapshot {
 impl From<&Document> for DocumentSnapshot {
     fn from(d: &Document) -> Self {
         DocumentSnapshot {
-            content: bincode::serialize(d).expect("compatible"),
+            content: bincode::serialize(d).expect("compatible"), // TODO
         }
     }
 }

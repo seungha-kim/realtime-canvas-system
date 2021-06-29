@@ -1,7 +1,7 @@
 use crate::session::Session;
 use std::collections::HashMap;
 use std::num::Wrapping;
-use system::{ConnectionId, FileId, SessionId};
+use system::{ConnectionId, Document, FileId, SessionId};
 
 pub struct ServerState {
     pub connection_id_source: Wrapping<ConnectionId>,
@@ -38,12 +38,13 @@ impl ServerState {
     pub fn create_session(
         &mut self,
         file_id: &FileId,
+        document: Document,
     ) -> Result<(SessionId, ConnectionId), ServerError> {
         let session_id = self.new_session_id();
         self.file_sessions
             .insert(file_id.clone(), session_id.clone());
         self.sessions
-            .insert(session_id, Session::new(file_id.clone()));
+            .insert(session_id, Session::new(file_id.clone(), document));
         self.join_session(file_id)
     }
 
@@ -77,18 +78,17 @@ impl ServerState {
                 .get_mut(&session_id)
                 .map(|s| s.connections.retain(|e| e != connection_id));
             self.connection_locations.remove(connection_id);
-            if self
-                .sessions
-                .get(&session_id)
-                .map(|s| s.connections.is_empty())
-                .unwrap_or(false)
-            {
-                self.terminate_session(&session_id);
-            }
             Some(session_id)
         } else {
             None
         }
+    }
+
+    pub fn is_empty_session(&self, session_id: &SessionId) -> bool {
+        self.sessions
+            .get(session_id)
+            .map(|s| s.connections.is_empty())
+            .unwrap_or(false)
     }
 
     pub fn connection_ids_in_session(
@@ -111,9 +111,10 @@ impl ServerState {
         self.session_id_source.0
     }
 
-    fn terminate_session(&mut self, session_id: &SessionId) {
+    pub fn terminate_session(&mut self, session_id: &SessionId) -> Session {
         let session = self.sessions.remove(&session_id).unwrap();
         self.file_sessions.remove(&session.file_id);
+        session
     }
 }
 
@@ -125,7 +126,8 @@ mod tests {
     #[test]
     fn it_remove_session_when_all_connections_disconnect() {
         let mut state = ServerState::new();
-        let (_, connection_id) = state.create_session(&Uuid::new_v4()).expect("");
+        let document = Document::new();
+        let (_, connection_id) = state.create_session(&Uuid::new_v4(), document).expect("");
         state.leave_session(&connection_id).expect("");
         assert!(state.sessions.is_empty())
     }

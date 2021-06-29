@@ -1,12 +1,13 @@
 use system::euclid::default::Point2D;
 use system::{
-    ClientFollowerDocument, Color, DocumentCommand, DocumentMutation, DocumentReadable,
+    ClientFollowerDocument, Color, Document, DocumentCommand, DocumentMutation, DocumentReadable,
     Materialize, ServerLeaderDocument,
 };
 
 #[test]
 fn it_should_materialize_oval() {
-    let mut server = ServerLeaderDocument::new();
+    let document = Document::new();
+    let mut server = ServerLeaderDocument::new(document);
     let mut client = ClientFollowerDocument::new(server.snapshot());
 
     let tx_result = client

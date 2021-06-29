@@ -1,9 +1,10 @@
-use system::FileId;
+use system::{Document, DocumentReadable, DocumentSnapshot, FileId};
 use tokio::fs;
 
-pub async fn write_document_file(file_id: &FileId) {
+pub async fn write_document_file(file_id: &FileId, document: &Document) {
     let file_name = create_file_name(file_id);
-    fs::write(file_name, b"hello world").await.unwrap();
+    let snapshot = document.snapshot();
+    fs::write(file_name, snapshot.content()).await.unwrap();
 }
 
 pub async fn list_document_files() -> Vec<FileId> {
@@ -28,10 +29,20 @@ pub async fn list_document_files() -> Vec<FileId> {
     result
 }
 
-pub async fn get_document_file(file_id: &FileId) -> Result<(), ()> {
+pub async fn get_document_file_meta(file_id: &FileId) -> Result<(), ()> {
     let file_name = create_file_name(file_id);
     if let Ok(_) = fs::metadata(file_name).await {
         Ok(())
+    } else {
+        Err(())
+    }
+}
+
+pub async fn read_document_file(file_id: &FileId) -> Result<Document, ()> {
+    let file_name = create_file_name(file_id);
+    if let Ok(v) = fs::read(file_name).await {
+        // TODO: DocumentSnapshot -> Document 변환시 에러 처리
+        Ok(Document::from(&DocumentSnapshot::from_vec(v)))
     } else {
         Err(())
     }

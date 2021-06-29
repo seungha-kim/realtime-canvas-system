@@ -3,6 +3,7 @@ use crate::document_file::{list_document_files, write_document_file};
 use actix_web::{web, HttpResponse};
 use system::serde_json::json;
 use system::uuid::Uuid;
+use system::Document;
 
 pub fn handler_files(cfg: &mut web::ServiceConfig) {
     cfg.service(
@@ -14,7 +15,8 @@ pub fn handler_files(cfg: &mut web::ServiceConfig) {
 
 async fn post() -> Result<impl Responder, actix_web::error::Error> {
     let file_id = Uuid::new_v4();
-    write_document_file(&file_id).await;
+    let document = Document::new();
+    write_document_file(&file_id, &document).await;
     Ok(HttpResponse::Ok().json(json!({ "fileId": file_id.to_string() })))
 }
 

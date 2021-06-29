@@ -7,6 +7,7 @@ use system::{
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
 use crate::connection_tx_storage::ConnectionTxStorage;
+use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
 
 pub type ServerTx = Sender<ConnectionCommand>;
@@ -32,7 +33,8 @@ impl Server {
                 let (session_id, connection_id) = if self.server_state.has_session(file_id) {
                     self.server_state.join_session(file_id).unwrap()
                 } else {
-                    self.server_state.create_session(file_id).unwrap()
+                    let document = read_document_file(file_id).await.unwrap();
+                    self.server_state.create_session(file_id, document).unwrap()
                 };
 
                 let session = self
@@ -196,14 +198,19 @@ impl Server {
     async fn leave_session(&mut self, connection_id: &ConnectionId) {
         // NOTE: ConnectionCommand::Disconnect 두 번 들어옴
         if let Some(session_id) = self.server_state.leave_session(connection_id) {
-            if let Some(session) = self.server_state.sessions.get(&session_id) {
-                let session_snapshot = session.snapshot();
-                self.broadcast_session_event(
-                    &session_id,
-                    SessionEvent::SessionStateChanged(session_snapshot),
-                    Some(connection_id),
-                )
-                .await;
+            if self.server_state.is_empty_session(&session_id) {
+                let session = self.server_state.terminate_session(&session_id);
+                write_document_file(&session.file_id, session.document.document()).await;
+            } else {
+                if let Some(session) = self.server_state.sessions.get(&session_id) {
+                    let session_snapshot = session.snapshot();
+                    self.broadcast_session_event(
+                        &session_id,
+                        SessionEvent::SessionStateChanged(session_snapshot),
+                        Some(connection_id),
+                    )
+                    .await;
+                }
             }
         }
     }
