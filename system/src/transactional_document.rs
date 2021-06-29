@@ -1,7 +1,7 @@
 use crate::message::*;
 use crate::traits::{DocumentReadable, PropReadable};
 
-use super::document_storage::*;
+use super::document::*;
 use super::transaction_manager::*;
 use uuid::Uuid;
 

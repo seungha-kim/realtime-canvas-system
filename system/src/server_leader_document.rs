@@ -1,8 +1,8 @@
 use crate::materialize::Materialize;
-use crate::transactional_storage::TransactionalStorage;
+use crate::transactional_document::TransactionalStorage;
 
 use super::message::*;
-use crate::document_storage::DocumentSnapshot;
+use crate::document::DocumentSnapshot;
 use crate::traits::DocumentReadable;
 use uuid::Uuid;
 

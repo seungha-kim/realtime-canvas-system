@@ -1,17 +1,17 @@
 mod client_follower_document;
+mod document;
 pub mod document_command;
 mod document_command_transaction;
-mod document_storage;
 pub mod materialize;
 mod message;
 mod server_leader_document;
 mod traits;
 mod transaction_manager;
-mod transactional_storage;
+mod transactional_document;
 
 pub use client_follower_document::*;
+pub use document::*;
 pub use document_command::*;
-pub use document_storage::*;
 pub use materialize::*;
 pub use message::*;
 pub use server_leader_document::*;

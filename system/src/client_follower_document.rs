@@ -2,7 +2,7 @@ use super::message::*;
 use crate::document_command_transaction::convert_command_to_tx;
 use crate::materialize::Materialize;
 use crate::traits::DocumentReadable;
-use crate::transactional_storage::TransactionalStorage;
+use crate::transactional_document::TransactionalStorage;
 use crate::{DocumentCommand, DocumentSnapshot, PropReadable};
 use std::collections::HashSet;
 

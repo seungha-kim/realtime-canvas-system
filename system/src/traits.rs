@@ -1,4 +1,4 @@
-use crate::document_storage::DocumentSnapshot;
+use crate::document::DocumentSnapshot;
 use crate::{Color, ObjectId, ObjectKind, PropKind, PropValue};
 use base95::Base95;
 use euclid::default::Transform2D;
