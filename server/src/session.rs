@@ -1,5 +1,6 @@
 use system::{ConnectionId, Document, FileId, ServerLeaderDocument, SessionSnapshot};
 
+#[derive(Debug)]
 pub struct Session {
     pub file_id: FileId,
     pub connections: Vec<ConnectionId>,

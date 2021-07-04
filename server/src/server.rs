@@ -6,11 +6,18 @@ use system::{
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
+use crate::admin::AdminCommand;
 use crate::connection_tx_storage::ConnectionTxStorage;
 use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
 
-pub type ServerTx = Sender<ConnectionCommand>;
+pub type ServerTx = Sender<ServerCommand>;
+
+#[derive(Debug)]
+pub enum ServerCommand {
+    ConnectionCommand(ConnectionCommand),
+    AdminCommand(AdminCommand),
+}
 
 struct Server {
     server_state: ServerState,
@@ -108,6 +115,23 @@ impl Server {
                 },
             },
         }
+    }
+
+    async fn handle_admin_command(&mut self, command: AdminCommand) {
+        match command {
+            AdminCommand::GetSessionState { file_id, tx } => {
+                let state_description = self
+                    .server_state
+                    .file_sessions
+                    .get(&file_id)
+                    .and_then(|session_id| self.server_state.sessions.get(session_id))
+                    .map_or_else(
+                        || format!("No session with file id {}", file_id),
+                        |session| format!("{:#?}", session),
+                    );
+                tx.send(state_description).expect("must success");
+            }
+        };
     }
 
     async fn handle_session_command(
@@ -217,13 +241,20 @@ impl Server {
 }
 
 pub fn spawn_server() -> ServerTx {
-    let (srv_tx, mut srv_rx) = channel::<ConnectionCommand>(256);
+    let (srv_tx, mut srv_rx) = channel::<ServerCommand>(256);
 
     tokio::spawn(async move {
         let mut server = Box::new(Server::new());
 
         while let Some(command) = srv_rx.recv().await {
-            server.handle_connection_command(&command).await;
+            match command {
+                ServerCommand::ConnectionCommand(connection_command) => {
+                    server.handle_connection_command(&connection_command).await;
+                }
+                ServerCommand::AdminCommand(admin_command) => {
+                    server.handle_admin_command(admin_command).await;
+                }
+            }
         }
     });
 

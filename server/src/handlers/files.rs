@@ -5,7 +5,7 @@ use system::serde_json::json;
 use system::uuid::Uuid;
 use system::Document;
 
-pub fn handler_files(cfg: &mut web::ServiceConfig) {
+pub fn configure_file_handlers(cfg: &mut web::ServiceConfig) {
     cfg.service(
         web::resource("/files")
             .route(web::post().to(post))

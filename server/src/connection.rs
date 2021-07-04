@@ -6,7 +6,7 @@ use system::{bincode, ConnectionId, FileId, IdentifiableCommand, IdentifiableEve
 
 use crate::connection_tx_storage::ConnectionTx;
 use crate::document_file::get_document_file_meta;
-use crate::server::ServerTx;
+use crate::server::{ServerCommand, ServerTx};
 use actix_web_actors::ws::{CloseCode, CloseReason};
 use system::uuid::Uuid;
 
@@ -54,10 +54,12 @@ impl Actor for ConnectionActor {
         let (tx, mut rx) = tokio::sync::mpsc::channel::<ConnectionEvent>(32);
 
         self.srv_tx
-            .try_send(ConnectionCommand::Connect {
-                tx,
-                file_id: self.file_id.clone(),
-            })
+            .try_send(ServerCommand::ConnectionCommand(
+                ConnectionCommand::Connect {
+                    tx,
+                    file_id: self.file_id.clone(),
+                },
+            ))
             .expect("server must not be not closed yet");
 
         let addr = ctx.address().recipient();
@@ -76,7 +78,9 @@ impl Actor for ConnectionActor {
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
         if let ConnectionState::Connected(id) = self.state {
             self.srv_tx
-                .try_send(ConnectionCommand::Disconnect { from: id })
+                .try_send(ServerCommand::ConnectionCommand(
+                    ConnectionCommand::Disconnect { from: id },
+                ))
                 .expect("should have enough buffer");
         }
 
@@ -95,7 +99,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ConnectionActor {
                     if let Ok(command) = bincode::deserialize::<IdentifiableCommand>(&bin) {
                         log::debug!("Ingress {:?}", command);
                         self.srv_tx
-                            .try_send(ConnectionCommand::IdentifiableCommand { from, command })
+                            .try_send(ServerCommand::ConnectionCommand(
+                                ConnectionCommand::IdentifiableCommand { from, command },
+                            ))
                             .expect("should have enough buffer");
                     } else {
                         ctx.close(Some(CloseReason {
@@ -108,7 +114,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for ConnectionActor {
             Ok(ws::Message::Close(_)) => {
                 if let ConnectionState::Connected(id) = self.state {
                     self.srv_tx
-                        .try_send(ConnectionCommand::Disconnect { from: id })
+                        .try_send(ServerCommand::ConnectionCommand(
+                            ConnectionCommand::Disconnect { from: id },
+                        ))
                         .expect("should have enough buffer");
                     // TODO: system 쪽에서 Disconnect 가 처리되었을 때 실제로 커넥션이 끊어지는 메커니즘
                 }

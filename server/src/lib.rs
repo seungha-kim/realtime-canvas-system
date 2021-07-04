@@ -1,5 +1,6 @@
 pub extern crate actix_web;
 
+mod admin;
 pub mod connection;
 mod connection_tx_storage;
 mod document_file;
