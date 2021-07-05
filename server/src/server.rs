@@ -6,7 +6,7 @@ use system::{
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
-use crate::admin::AdminCommand;
+use crate::admin::{AdminCommand, FileDescription};
 use crate::connection_tx_storage::ConnectionTxStorage;
 use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
@@ -120,16 +120,21 @@ impl Server {
     async fn handle_admin_command(&mut self, command: AdminCommand) {
         match command {
             AdminCommand::GetSessionState { file_id, tx } => {
-                let state_description = self
+                if let Some(session) = self
                     .server_state
                     .file_sessions
                     .get(&file_id)
                     .and_then(|session_id| self.server_state.sessions.get(session_id))
-                    .map_or_else(
-                        || format!("No session with file id {}", file_id),
-                        |session| format!("{:#?}", session),
-                    );
-                tx.send(state_description).expect("must success");
+                {
+                    tx.send(Ok(FileDescription::Online(format!("{:#?}", session))))
+                        .expect("must success")
+                } else {
+                    let result = match read_document_file(&file_id).await {
+                        Ok(document) => Ok(FileDescription::Offline(format!("{:#?}", document))),
+                        Err(_) => Err(format!("No file with id {}", file_id)),
+                    };
+                    tx.send(result).expect("must success")
+                }
             }
         };
     }

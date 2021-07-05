@@ -1,4 +1,4 @@
-use crate::admin::AdminCommand;
+use crate::admin::{AdminCommand, FileDescription};
 use crate::document_file::{list_document_files, write_document_file};
 use crate::server::{ServerCommand, ServerTx};
 use actix_web::error;
@@ -102,7 +102,7 @@ pub async fn show_document(
         .parse::<FileId>()
         .map_err(|_| error::ErrorBadRequest("invalid format"))?;
 
-    let (tx, rx) = tokio::sync::oneshot::channel::<String>();
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<FileDescription, String>>();
 
     srv_tx
         .get_ref()
@@ -114,7 +114,12 @@ pub async fn show_document(
         .await
         .map_err(|_| error::ErrorInternalServerError("Internal Server Error"))?;
 
-    rx.await
-        .map(|desc| SimpleTemplate { content: desc })
-        .map_err(|_| error::ErrorInternalServerError("Internal Server Error"))
+    let result = rx
+        .await
+        .map_err(|_| error::ErrorInternalServerError("Receiver await error"))?;
+    let desc = match result.map_err(|err| error::ErrorInternalServerError(err))? {
+        FileDescription::Online(desc) => desc,
+        FileDescription::Offline(desc) => desc,
+    };
+    Ok(SimpleTemplate { content: desc })
 }
