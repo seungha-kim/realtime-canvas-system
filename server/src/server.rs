@@ -131,8 +131,11 @@ impl Server {
                     .get(&file_id)
                     .and_then(|session_id| self.server_state.sessions.get(session_id))
                 {
-                    tx.send(Ok(FileDescription::Online(format!("{:#?}", session))))
-                        .expect("must success")
+                    tx.send(Ok(FileDescription::Online(
+                        format!("{:#?}", session),
+                        session.behavior.clone(),
+                    )))
+                    .expect("must success")
                 } else {
                     let result = match read_document_file(&file_id).await {
                         Ok(document) => Ok(FileDescription::Offline(format!("{:#?}", document))),

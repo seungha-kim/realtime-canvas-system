@@ -1,0 +1,5 @@
+{% extends "../base.html" %}
+{% block content -%}
+<h1>{% if online %}Online {% else %}Offline {% endif %}File{% if manual %}(Manual){% endif %}</h1>
+<pre>{{snapshot}}</pre>
+{%- endblock %}

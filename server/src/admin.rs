@@ -1,3 +1,4 @@
+use crate::session::SessionBehavior;
 use system::{FileId, SessionId};
 use tokio::sync::oneshot::Sender;
 
@@ -19,6 +20,6 @@ pub enum AdminCommand {
 
 #[derive(Debug)]
 pub enum FileDescription {
-    Online(String),
+    Online(String, SessionBehavior),
     Offline(String),
 }

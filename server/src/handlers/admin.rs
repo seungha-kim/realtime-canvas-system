@@ -1,6 +1,7 @@
 use crate::admin::{AdminCommand, FileDescription};
 use crate::document_file::{list_document_files, write_document_file};
 use crate::server::{ServerCommand, ServerTx};
+use crate::session::SessionBehavior;
 use actix_web::error;
 use actix_web::web::{self, HttpRequest, HttpResponse};
 use actix_web::Responder;
@@ -88,6 +89,33 @@ pub struct SimpleTemplate {
     content: String,
 }
 
+#[derive(Template)]
+#[template(path = "admin/show-file.html")]
+pub struct AdminShowFileTemplate {
+    snapshot: String,
+    online: bool,
+    manual: bool,
+}
+
+impl AdminShowFileTemplate {
+    fn from_file_description(desc: FileDescription) -> Self {
+        let (snapshot, online, manual) = match desc {
+            FileDescription::Online(snapshot, SessionBehavior::AutoTerminateWhenEmpty) => {
+                (snapshot, true, false)
+            }
+            FileDescription::Online(snapshot, SessionBehavior::ManualCommitByAdmin) => {
+                (snapshot, true, true)
+            }
+            FileDescription::Offline(snapshot) => (snapshot, false, false),
+        };
+        Self {
+            snapshot,
+            online,
+            manual,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct ShowDocumentParam {
     file_id: String,
@@ -117,9 +145,7 @@ pub async fn show_document(
     let result = rx
         .await
         .map_err(|_| error::ErrorInternalServerError("Receiver await error"))?;
-    let desc = match result.map_err(|err| error::ErrorInternalServerError(err))? {
-        FileDescription::Online(desc) => desc,
-        FileDescription::Offline(desc) => desc,
-    };
-    Ok(SimpleTemplate { content: desc })
+    let desc = result.map_err(|err| error::ErrorInternalServerError(err))?;
+
+    Ok(AdminShowFileTemplate::from_file_description(desc))
 }

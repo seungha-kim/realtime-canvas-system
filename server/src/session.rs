@@ -5,10 +5,10 @@ pub struct Session {
     pub file_id: FileId,
     pub connections: Vec<ConnectionId>,
     pub document: ServerLeaderDocument,
-    behavior: SessionBehavior,
+    pub behavior: SessionBehavior,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum SessionBehavior {
     AutoTerminateWhenEmpty,
     ManualCommitByAdmin,
