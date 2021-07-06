@@ -1,7 +1,7 @@
 use tokio::sync::mpsc::{channel, Sender};
 
 use system::{
-    CommandResult, ConnectionId, DocumentReadable, IdentifiableCommand, IdentifiableEvent,
+    CommandResult, ConnectionId, DocumentReadable, FileId, IdentifiableCommand, IdentifiableEvent,
     LivePointerEvent, RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
 };
 
@@ -10,6 +10,7 @@ use crate::admin::{AdminCommand, FileDescription};
 use crate::connection_tx_storage::ConnectionTxStorage;
 use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
+use crate::session::SessionBehavior;
 
 pub type ServerTx = Sender<ServerCommand>;
 
@@ -37,11 +38,15 @@ impl Server {
             ConnectionCommand::Connect { tx, file_id } => {
                 let mut tx = tx.clone();
 
-                let (session_id, connection_id) = if self.server_state.has_session(file_id) {
+                let (session_id, connection_id) = if self.server_state.session_id(file_id).is_some()
+                {
                     self.server_state.join_session(file_id).unwrap()
                 } else {
                     let document = read_document_file(file_id).await.unwrap();
-                    self.server_state.create_session(file_id, document).unwrap()
+                    self.server_state
+                        .create_session(file_id, document, SessionBehavior::AutoTerminateWhenEmpty)
+                        .unwrap();
+                    self.server_state.join_session(file_id).unwrap()
                 };
 
                 let session = self
@@ -136,7 +141,34 @@ impl Server {
                     tx.send(result).expect("must success")
                 }
             }
+            AdminCommand::OpenManualCommitSession { file_id, tx } => {
+                let session_id = self
+                    .create_session(&file_id, SessionBehavior::ManualCommitByAdmin)
+                    .await
+                    .unwrap();
+                tx.send(Ok(session_id)).unwrap();
+            }
+            AdminCommand::CloseManualCommitSession { file_id, tx } => {
+                if let Some(session_id) = self.server_state.session_id(&file_id).cloned() {
+                    self.terminate_session(&session_id).await;
+                    tx.send(Ok(())).unwrap();
+                }
+            }
         };
+    }
+
+    async fn create_session(
+        &mut self,
+        file_id: &FileId,
+        behavior: SessionBehavior,
+    ) -> Result<SessionId, ()> {
+        let document = read_document_file(&file_id).await.unwrap();
+        let session_id = self
+            .server_state
+            .create_session(&file_id, document, behavior)
+            .unwrap();
+
+        Ok(session_id)
     }
 
     async fn handle_session_command(
@@ -224,12 +256,21 @@ impl Server {
         self.connections.remove(connection_id);
     }
 
+    async fn terminate_session(&mut self, session_id: &SessionId) {
+        let session = self.server_state.terminate_session(session_id);
+        write_document_file(&session.file_id, session.document.document()).await;
+    }
+
     async fn leave_session(&mut self, connection_id: &ConnectionId) {
         // NOTE: ConnectionCommand::Disconnect 두 번 들어옴
         if let Some(session_id) = self.server_state.leave_session(connection_id) {
-            if self.server_state.is_empty_session(&session_id) {
-                let session = self.server_state.terminate_session(&session_id);
-                write_document_file(&session.file_id, session.document.document()).await;
+            let should_terminate = self
+                .server_state
+                .get_session(&session_id)
+                .expect("must exist")
+                .should_terminate();
+            if should_terminate {
+                self.terminate_session(&session_id).await;
             } else {
                 if let Some(session) = self.server_state.sessions.get(&session_id) {
                     let session_snapshot = session.snapshot();
