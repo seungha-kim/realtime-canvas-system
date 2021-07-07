@@ -2,4 +2,14 @@
 {% block content -%}
 <h1>{% if online %}Online {% else %}Offline {% endif %}File{% if manual %}(Manual){% endif %}</h1>
 <pre>{{snapshot}}</pre>
+{% if !online %}
+<form method="post" action="{{open_manual_session_action}}">
+    <button type="submit">Create manual-commit session</button>
+</form>
+{% endif %}
+{% if online && manual %}
+<form method="post" action="{{close_manual_session_action}}">
+    <button type="submit">Close this manual-commit session</button>
+</form>
+{% endif %}
 {%- endblock %}
