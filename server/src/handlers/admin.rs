@@ -31,6 +31,11 @@ pub fn configure_admin_handlers(cfg: &mut web::ServiceConfig) {
                 web::resource("/documents/{file_id}")
                     .name("admin_document")
                     .route(web::get().to(show_document)),
+            )
+            .service(
+                web::resource("/documents/{file_id}/create_manual_session")
+                    .name("admin_document_create_manual_session")
+                    .route(web::post().to(create_manual_session)),
             ),
     );
 }
@@ -123,6 +128,40 @@ pub struct ShowDocumentParam {
 
 pub async fn show_document(
     path: web::Path<ShowDocumentParam>,
+    srv_tx: web::Data<ServerTx>,
+) -> Result<impl Responder> {
+    let file_id = path
+        .file_id
+        .parse::<FileId>()
+        .map_err(|_| error::ErrorBadRequest("invalid format"))?;
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<FileDescription, String>>();
+
+    srv_tx
+        .get_ref()
+        .clone()
+        .send(ServerCommand::AdminCommand(AdminCommand::GetSessionState {
+            tx,
+            file_id,
+        }))
+        .await
+        .map_err(|_| error::ErrorInternalServerError("Internal Server Error"))?;
+
+    let result = rx
+        .await
+        .map_err(|_| error::ErrorInternalServerError("Receiver await error"))?;
+    let desc = result.map_err(|err| error::ErrorInternalServerError(err))?;
+
+    Ok(AdminShowFileTemplate::from_file_description(desc))
+}
+
+#[derive(Deserialize)]
+struct CreateManualSessionParam {
+    file_id: String,
+}
+
+pub async fn create_manual_session(
+    path: web::Path<CreateManualSessionParam>,
     srv_tx: web::Data<ServerTx>,
 ) -> Result<impl Responder> {
     let file_id = path
