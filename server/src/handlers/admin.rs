@@ -41,6 +41,11 @@ pub fn configure_admin_handlers(cfg: &mut web::ServiceConfig) {
                 web::resource("/documents/{file_id}/close_manual_session")
                     .name("admin_document_close_manual_session")
                     .route(web::post().to(close_manual_session)),
+            )
+            .service(
+                web::resource("/documents/{file_id}/commit_manually")
+                    .name("admin_document_commit_manually")
+                    .route(web::post().to(commit_manually)),
             ),
     );
 }
@@ -107,18 +112,24 @@ pub struct AdminShowFileTemplate {
     manual: bool,
     open_manual_session_action: String,
     close_manual_session_action: String,
+    commit_manually_action: String,
+    has_pending_txs: bool,
 }
 
 impl AdminShowFileTemplate {
     fn from_file_description(req: &HttpRequest, desc: FileDescription, file_id: &FileId) -> Self {
-        let (snapshot, online, manual) = match desc {
-            FileDescription::Online(snapshot, SessionBehavior::AutoTerminateWhenEmpty) => {
-                (snapshot, true, false)
-            }
-            FileDescription::Online(snapshot, SessionBehavior::ManualCommitByAdmin) => {
-                (snapshot, true, true)
-            }
-            FileDescription::Offline(snapshot) => (snapshot, false, false),
+        let (snapshot, online, manual, has_pending_txs) = match desc {
+            FileDescription::Online {
+                debug,
+                behavior: SessionBehavior::AutoTerminateWhenEmpty,
+                has_pending_txs,
+            } => (debug, true, false, has_pending_txs),
+            FileDescription::Online {
+                debug,
+                behavior: SessionBehavior::ManualCommitByAdmin,
+                has_pending_txs,
+            } => (debug, true, true, has_pending_txs),
+            FileDescription::Offline(snapshot) => (snapshot, false, false, false),
         };
         Self {
             snapshot,
@@ -138,6 +149,11 @@ impl AdminShowFileTemplate {
                 )
                 .unwrap()
                 .to_string(),
+            commit_manually_action: req
+                .url_for("admin_document_commit_manually", &[file_id.to_string()])
+                .unwrap()
+                .to_string(),
+            has_pending_txs,
         }
     }
 }
@@ -244,6 +260,42 @@ pub async fn close_manual_session(
                 tx,
             },
         ))
+        .await
+        .map_err(|_| error::ErrorInternalServerError("Internal Server Error"))?;
+
+    rx.await
+        .map_err(|_| error::ErrorInternalServerError("Receiver await error"))?
+        .map_err(|_| error::ErrorInternalServerError("Internal Server Error"))?;
+
+    let redirect_to = req
+        .url_for("admin_document", &[file_id.to_string()])
+        .map_err(|_| error::ErrorInternalServerError("Internal Server Error"))?
+        .to_string();
+
+    Ok(HttpResponse::Found()
+        .header("Location", redirect_to)
+        .finish())
+}
+
+pub async fn commit_manually(
+    req: HttpRequest,
+    path: web::Path<CreateManualSessionParam>,
+    srv_tx: web::Data<ServerTx>,
+) -> Result<impl Responder> {
+    let file_id = path
+        .file_id
+        .parse::<FileId>()
+        .map_err(|_| error::ErrorBadRequest("invalid format"))?;
+
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<(), ()>>();
+
+    srv_tx
+        .get_ref()
+        .clone()
+        .send(ServerCommand::AdminCommand(AdminCommand::CommitManually {
+            file_id: file_id.clone(),
+            tx,
+        }))
         .await
         .map_err(|_| error::ErrorInternalServerError("Internal Server Error"))?;
 

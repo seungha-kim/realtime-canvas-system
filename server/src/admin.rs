@@ -16,10 +16,18 @@ pub enum AdminCommand {
         file_id: FileId,
         tx: Sender<Result<(), ()>>,
     },
+    CommitManually {
+        file_id: FileId,
+        tx: Sender<Result<(), ()>>,
+    },
 }
 
 #[derive(Debug)]
 pub enum FileDescription {
-    Online(String, SessionBehavior),
+    Online {
+        debug: String,
+        behavior: SessionBehavior,
+        has_pending_txs: bool,
+    },
     Offline(String),
 }
