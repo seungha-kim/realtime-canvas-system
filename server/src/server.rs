@@ -1,8 +1,8 @@
 use tokio::sync::mpsc::{channel, Sender};
 
 use system::{
-    CommandResult, ConnectionId, DocumentReadable, IdentifiableCommand, IdentifiableEvent,
-    LivePointerEvent, RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
+    CommandResult, ConnectionId, FileId, IdentifiableCommand, IdentifiableEvent, LivePointerEvent,
+    RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
@@ -10,6 +10,9 @@ use crate::admin::{AdminCommand, FileDescription};
 use crate::connection_tx_storage::ConnectionTxStorage;
 use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
+use crate::session::{
+    PendingTransactionCommitError, PendingTransactionCommitResult, SessionBehavior,
+};
 
 pub type ServerTx = Sender<ServerCommand>;
 
@@ -37,11 +40,15 @@ impl Server {
             ConnectionCommand::Connect { tx, file_id } => {
                 let mut tx = tx.clone();
 
-                let (session_id, connection_id) = if self.server_state.has_session(file_id) {
+                let (session_id, connection_id) = if self.server_state.session_id(file_id).is_some()
+                {
                     self.server_state.join_session(file_id).unwrap()
                 } else {
                     let document = read_document_file(file_id).await.unwrap();
-                    self.server_state.create_session(file_id, document).unwrap()
+                    self.server_state
+                        .create_session(file_id, document, SessionBehavior::AutoTerminateWhenEmpty)
+                        .unwrap();
+                    self.server_state.join_session(file_id).unwrap()
                 };
 
                 let session = self
@@ -50,7 +57,7 @@ impl Server {
                     .get(&session_id)
                     .expect("session must exist");
                 let session_snapshot = session.snapshot();
-                let document_snapshot = session.document.snapshot();
+                let document_snapshot = session.document_snapshot();
 
                 if tx
                     .send(ConnectionEvent::IdentifiableEvent(
@@ -126,8 +133,12 @@ impl Server {
                     .get(&file_id)
                     .and_then(|session_id| self.server_state.sessions.get(session_id))
                 {
-                    tx.send(Ok(FileDescription::Online(format!("{:#?}", session))))
-                        .expect("must success")
+                    tx.send(Ok(FileDescription::Online {
+                        debug: format!("{:#?}", session),
+                        behavior: session.behavior.clone(),
+                        has_pending_txs: session.has_pending_transactions(),
+                    }))
+                    .expect("must success")
                 } else {
                     let result = match read_document_file(&file_id).await {
                         Ok(document) => Ok(FileDescription::Offline(format!("{:#?}", document))),
@@ -136,7 +147,95 @@ impl Server {
                     tx.send(result).expect("must success")
                 }
             }
+            AdminCommand::OpenManualCommitSession { file_id, tx } => {
+                let session_id = self
+                    .create_session(&file_id, SessionBehavior::ManualCommitByAdmin)
+                    .await
+                    .unwrap();
+                tx.send(Ok(session_id)).unwrap();
+            }
+            AdminCommand::CloseManualCommitSession { file_id, tx } => {
+                if let Some(session_id) = self.server_state.session_id(&file_id).cloned() {
+                    self.terminate_session(&session_id).await;
+                    tx.send(Ok(())).unwrap();
+                }
+            }
+            AdminCommand::CommitManually {
+                file_id,
+                tx: transmit,
+            } => {
+                let is_valid_command: bool;
+                if let Some(session_id) = self.server_state.session_id(&file_id).cloned() {
+                    let session = self.server_state.sessions.get_mut(&session_id).unwrap();
+                    match session.commit_pending_transaction() {
+                        Ok(Some(PendingTransactionCommitResult { tx, from })) => {
+                            let ack_event = SessionEvent::TransactionAck(tx.id);
+                            self.connections
+                                .send(
+                                    &from,
+                                    ConnectionEvent::IdentifiableEvent(
+                                        IdentifiableEvent::BySystem {
+                                            session_event: ack_event,
+                                        },
+                                    ),
+                                )
+                                .await;
+
+                            self.broadcast_session_event(
+                                &session_id,
+                                SessionEvent::OthersTransaction(tx),
+                                Some(&from),
+                            )
+                            .await;
+                            is_valid_command = true;
+                        }
+                        Err(err) => match err {
+                            PendingTransactionCommitError::InvalidRequest => {
+                                is_valid_command = false;
+                            }
+                            PendingTransactionCommitError::Rollback { from, tx_id } => {
+                                let session_event =
+                                    SessionEvent::TransactionNack(tx_id, RollbackReason::Something);
+                                self.connections
+                                    .send(
+                                        &from,
+                                        ConnectionEvent::IdentifiableEvent(
+                                            IdentifiableEvent::BySystem { session_event },
+                                        ),
+                                    )
+                                    .await;
+                                is_valid_command = true;
+                            }
+                        },
+                        _ => {
+                            panic!("Unexpected branch")
+                        }
+                    }
+                } else {
+                    is_valid_command = false;
+                }
+
+                if is_valid_command {
+                    transmit.send(Ok(())).unwrap();
+                } else {
+                    transmit.send(Err(())).unwrap();
+                }
+            }
         };
+    }
+
+    async fn create_session(
+        &mut self,
+        file_id: &FileId,
+        behavior: SessionBehavior,
+    ) -> Result<SessionId, ()> {
+        let document = read_document_file(&file_id).await.unwrap();
+        let session_id = self
+            .server_state
+            .create_session(&file_id, document, behavior)
+            .unwrap();
+
+        Ok(session_id)
     }
 
     async fn handle_session_command(
@@ -167,22 +266,23 @@ impl Server {
                     .sessions
                     .get_mut(&session_id)
                     .expect("must exist")
-                    .document
-                    .process_transaction(tx.clone());
-                if let Ok(tx) = result {
-                    let session_event = SessionEvent::TransactionAck(tx.id.clone());
-                    self.broadcast_session_event(
-                        &session_id,
-                        SessionEvent::OthersTransaction(tx),
-                        Some(from),
-                    )
-                    .await;
-                    Ok(Some(session_event))
-                } else {
-                    Ok(Some(SessionEvent::TransactionNack(
+                    .handle_transaction(from, tx.clone());
+                match result {
+                    Ok(Some(tx)) => {
+                        let session_event = SessionEvent::TransactionAck(tx.id.clone());
+                        self.broadcast_session_event(
+                            &session_id,
+                            SessionEvent::OthersTransaction(tx),
+                            Some(from),
+                        )
+                        .await;
+                        Ok(Some(session_event))
+                    }
+                    Ok(None) => Ok(None),
+                    Err(_) => Ok(Some(SessionEvent::TransactionNack(
                         tx.id.clone(),
                         RollbackReason::Something,
-                    )))
+                    ))),
                 }
             }
         }
@@ -224,12 +324,21 @@ impl Server {
         self.connections.remove(connection_id);
     }
 
+    async fn terminate_session(&mut self, session_id: &SessionId) {
+        let session = self.server_state.terminate_session(session_id);
+        write_document_file(&session.file_id, session.document()).await;
+    }
+
     async fn leave_session(&mut self, connection_id: &ConnectionId) {
         // NOTE: ConnectionCommand::Disconnect 두 번 들어옴
         if let Some(session_id) = self.server_state.leave_session(connection_id) {
-            if self.server_state.is_empty_session(&session_id) {
-                let session = self.server_state.terminate_session(&session_id);
-                write_document_file(&session.file_id, session.document.document()).await;
+            let should_terminate = self
+                .server_state
+                .get_session(&session_id)
+                .expect("must exist")
+                .should_terminate();
+            if should_terminate {
+                self.terminate_session(&session_id).await;
             } else {
                 if let Some(session) = self.server_state.sessions.get(&session_id) {
                     let session_snapshot = session.snapshot();

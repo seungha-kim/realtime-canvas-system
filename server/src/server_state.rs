@@ -1,4 +1,4 @@
-use crate::session::Session;
+use crate::session::{Session, SessionBehavior};
 use std::collections::HashMap;
 use std::num::Wrapping;
 use system::{ConnectionId, Document, FileId, SessionId};
@@ -15,6 +15,7 @@ pub struct ServerState {
 #[derive(Debug)]
 pub enum ServerError {
     NoSessionForFile,
+    SessionAlreadyCreatedForFileId,
     InvalidSessionId,
     InvalidCommandForState,
 }
@@ -31,21 +32,28 @@ impl ServerState {
         }
     }
 
-    pub fn has_session(&self, file_id: &FileId) -> bool {
-        self.file_sessions.contains_key(file_id)
+    pub fn session_id(&self, file_id: &FileId) -> Option<&SessionId> {
+        self.file_sessions.get(file_id)
     }
 
     pub fn create_session(
         &mut self,
         file_id: &FileId,
         document: Document,
-    ) -> Result<(SessionId, ConnectionId), ServerError> {
+        behavior: SessionBehavior,
+    ) -> Result<SessionId, ServerError> {
         let session_id = self.new_session_id();
-        self.file_sessions
-            .insert(file_id.clone(), session_id.clone());
-        self.sessions
-            .insert(session_id, Session::new(file_id.clone(), document));
-        self.join_session(file_id)
+        if self.file_sessions.contains_key(file_id) {
+            Err(ServerError::SessionAlreadyCreatedForFileId)
+        } else {
+            self.file_sessions
+                .insert(file_id.clone(), session_id.clone());
+            self.sessions.insert(
+                session_id.clone(),
+                Session::new(file_id.clone(), document, behavior),
+            );
+            Ok(session_id)
+        }
     }
 
     pub fn join_session(
@@ -84,11 +92,8 @@ impl ServerState {
         }
     }
 
-    pub fn is_empty_session(&self, session_id: &SessionId) -> bool {
-        self.sessions
-            .get(session_id)
-            .map(|s| s.connections.is_empty())
-            .unwrap_or(false)
+    pub fn get_session(&self, session_id: &SessionId) -> Option<&Session> {
+        self.sessions.get(session_id)
     }
 
     pub fn connection_ids_in_session(

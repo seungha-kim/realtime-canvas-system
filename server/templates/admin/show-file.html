@@ -1,0 +1,24 @@
+{% extends "../base.html" %}
+{% block content -%}
+
+{% if !online %}
+<form method="post" action="{{open_manual_session_action}}">
+    <button type="submit">Create manual-commit session</button>
+</form>
+{% endif %}
+
+{% if online && manual %}
+<form method="post" action="{{close_manual_session_action}}">
+    <button type="submit">Close this manual-commit session</button>
+</form>
+{% endif %}
+
+{% if has_pending_txs %}
+<form method="post" action="{{commit_manually_action}}">
+    <button type="submit">Commit pending transaction</button>
+</form>
+{% endif %}
+
+<h1>{% if online %}Online {% else %}Offline {% endif %}File{% if manual %}(Manual){% endif %}</h1>
+<pre>{{snapshot}}</pre>
+{%- endblock %}
