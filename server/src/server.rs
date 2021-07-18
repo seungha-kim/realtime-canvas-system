@@ -11,7 +11,7 @@ use crate::connection_tx_storage::ConnectionTxStorage;
 use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
 use crate::session::{
-    PendingTransactionCommitError, PendingTransactionCommitResult, SessionBehavior,
+    PendingTransactionCommitError, PendingTransactionCommitResult, Session, SessionBehavior,
 };
 
 pub type ServerTx = Sender<ServerCommand>;
@@ -39,17 +39,20 @@ impl Server {
         match command {
             ConnectionCommand::Connect { tx, file_id } => {
                 let mut tx = tx.clone();
-
-                let (session_id, connection_id) = if self.server_state.session_id(file_id).is_some()
+                let session_id: SessionId;
+                let connection_id: ConnectionId;
+                if let Ok((_session_id, _connection_id)) =
+                    self.join_or_create_auto_commit_session(file_id).await
                 {
-                    self.server_state.join_session(file_id).unwrap()
+                    session_id = _session_id;
+                    connection_id = _connection_id;
                 } else {
-                    let document = read_document_file(file_id).await.unwrap();
-                    self.server_state
-                        .create_session(file_id, document, SessionBehavior::AutoTerminateWhenEmpty)
-                        .unwrap();
-                    self.server_state.join_session(file_id).unwrap()
-                };
+                    // TODO: wrong connection_id
+                    tx.send(ConnectionEvent::Disconnected { connection_id: 0 })
+                        .await
+                        .expect("must succeed");
+                    return;
+                }
 
                 let session = self
                     .server_state
@@ -148,16 +151,22 @@ impl Server {
                 }
             }
             AdminCommand::OpenManualCommitSession { file_id, tx } => {
-                let session_id = self
+                match self
                     .create_session(&file_id, SessionBehavior::ManualCommitByAdmin)
                     .await
-                    .unwrap();
-                tx.send(Ok(session_id)).unwrap();
+                {
+                    Ok(session_id) => {
+                        tx.send(Ok(session_id)).expect("must succeed");
+                    }
+                    Err(_) => {
+                        tx.send(Err(())).expect("must succeed");
+                    }
+                }
             }
             AdminCommand::CloseManualCommitSession { file_id, tx } => {
                 if let Some(session_id) = self.server_state.session_id(&file_id).cloned() {
                     self.terminate_session(&session_id).await;
-                    tx.send(Ok(())).unwrap();
+                    tx.send(Ok(())).expect("must succeed");
                 }
             }
             AdminCommand::CommitManually {
@@ -166,7 +175,13 @@ impl Server {
             } => {
                 let is_valid_command: bool;
                 if let Some(session_id) = self.server_state.session_id(&file_id).cloned() {
-                    let session = self.server_state.sessions.get_mut(&session_id).unwrap();
+                    let session: &mut Session;
+                    if let Some(_session) = self.server_state.sessions.get_mut(&session_id) {
+                        session = _session;
+                    } else {
+                        transmit.send(Err(())).expect("must succeed");
+                        return;
+                    }
                     match session.commit_pending_transaction() {
                         Ok(Some(PendingTransactionCommitResult { tx, from })) => {
                             let ack_event = SessionEvent::TransactionAck(tx.id);
@@ -216,9 +231,9 @@ impl Server {
                 }
 
                 if is_valid_command {
-                    transmit.send(Ok(())).unwrap();
+                    transmit.send(Ok(())).expect("must succeed");
                 } else {
-                    transmit.send(Err(())).unwrap();
+                    transmit.send(Err(())).expect("must succeed");
                 }
             }
         };
@@ -229,13 +244,28 @@ impl Server {
         file_id: &FileId,
         behavior: SessionBehavior,
     ) -> Result<SessionId, ()> {
-        let document = read_document_file(&file_id).await.unwrap();
+        let document = read_document_file(&file_id).await.map_err(|_| ())?;
         let session_id = self
             .server_state
             .create_session(&file_id, document, behavior)
-            .unwrap();
-
+            .map_err(|_| ())?;
         Ok(session_id)
+    }
+
+    async fn join_or_create_auto_commit_session(
+        &mut self,
+        file_id: &FileId,
+    ) -> Result<(SessionId, ConnectionId), ()> {
+        let (session_id, connection_id) = if self.server_state.session_id(file_id).is_some() {
+            self.server_state.join_session(file_id).map_err(|_| ())?
+        } else {
+            let document = read_document_file(file_id).await.map_err(|_| ())?;
+            self.server_state
+                .create_session(file_id, document, SessionBehavior::AutoTerminateWhenEmpty)
+                .map_err(|_| ())?;
+            self.server_state.join_session(file_id).map_err(|_| ())?
+        };
+        Ok((session_id, connection_id))
     }
 
     async fn handle_session_command(

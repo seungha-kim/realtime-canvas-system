@@ -4,16 +4,18 @@ use tokio::fs;
 pub async fn write_document_file(file_id: &FileId, document: &Document) {
     let file_name = create_file_name(file_id);
     let snapshot = document.snapshot();
-    fs::write(file_name, snapshot.content()).await.unwrap();
+    fs::write(file_name, snapshot.content())
+        .await
+        .expect("must succeed");
 }
 
 pub async fn list_document_files() -> Vec<FileId> {
     let mut result = Vec::new();
 
-    let dir = std::env::current_dir().unwrap();
-    let mut entries = fs::read_dir(dir).await.unwrap();
-    while let Some(entry) = entries.next_entry().await.unwrap() {
-        let file_name = entry.file_name().into_string().unwrap();
+    let dir = std::env::current_dir().expect("must succeed");
+    let mut entries = fs::read_dir(dir).await.expect("must succeed");
+    while let Some(entry) = entries.next_entry().await.expect("must succeed") {
+        let file_name = entry.file_name().into_string().expect("must succeed");
         if file_name.ends_with(".rcs") {
             if let Some(file_id) = file_name
                 .split(".")

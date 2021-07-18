@@ -91,7 +91,7 @@ pub async fn list_documents(req: HttpRequest) -> Result<impl Responder> {
                 title: file_id.to_string(),
                 href: req
                     .url_for("admin_document", &[file_id.to_string()])
-                    .unwrap()
+                    .expect("valid")
                     .to_string(),
             })
             .collect(),
@@ -140,18 +140,18 @@ impl AdminShowFileTemplate {
                     "admin_document_create_manual_session",
                     &[file_id.to_string()],
                 )
-                .unwrap()
+                .expect("valid")
                 .to_string(),
             close_manual_session_action: req
                 .url_for(
                     "admin_document_close_manual_session",
                     &[file_id.to_string()],
                 )
-                .unwrap()
+                .expect("valid")
                 .to_string(),
             commit_manually_action: req
                 .url_for("admin_document_commit_manually", &[file_id.to_string()])
-                .unwrap()
+                .expect("valid")
                 .to_string(),
             has_pending_txs,
         }

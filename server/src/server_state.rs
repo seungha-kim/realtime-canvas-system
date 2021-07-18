@@ -117,7 +117,7 @@ impl ServerState {
     }
 
     pub fn terminate_session(&mut self, session_id: &SessionId) -> Session {
-        let session = self.sessions.remove(&session_id).unwrap();
+        let session = self.sessions.remove(&session_id).expect("must exist");
         self.file_sessions.remove(&session.file_id);
         session
     }
