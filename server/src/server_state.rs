@@ -1,15 +1,19 @@
-use crate::session::{Session, SessionBehavior};
+use crate::session::{
+    PendingTransactionCommitError, PendingTransactionCommitResult, Session, SessionBehavior,
+};
 use std::collections::HashMap;
 use std::num::Wrapping;
-use system::{ConnectionId, Document, FileId, SessionId};
+use system::{
+    ConnectionId, Document, DocumentSnapshot, FileId, SessionId, SessionSnapshot, Transaction,
+};
 
 pub struct ServerState {
-    pub connection_id_source: Wrapping<ConnectionId>,
-    pub connection_locations: HashMap<ConnectionId, SessionId>,
+    connection_id_source: Wrapping<ConnectionId>,
+    connection_locations: HashMap<ConnectionId, SessionId>,
 
-    pub session_id_source: Wrapping<SessionId>,
-    pub sessions: HashMap<SessionId, Session>,
-    pub file_sessions: HashMap<FileId, SessionId>,
+    session_id_source: Wrapping<SessionId>,
+    sessions: HashMap<SessionId, Session>,
+    file_sessions: HashMap<FileId, SessionId>,
 }
 
 #[derive(Debug)]
@@ -33,6 +37,14 @@ impl ServerState {
     }
 
     pub fn session_id(&self, file_id: &FileId) -> Option<&SessionId> {
+        self.file_sessions.get(file_id)
+    }
+
+    pub fn get_session_id_of_connection(&self, connection_id: &ConnectionId) -> Option<&SessionId> {
+        self.connection_locations.get(connection_id)
+    }
+
+    pub fn get_session_id_of_file(&self, file_id: &FileId) -> Option<&SessionId> {
         self.file_sessions.get(file_id)
     }
 
@@ -120,6 +132,42 @@ impl ServerState {
         let session = self.sessions.remove(&session_id).expect("must exist");
         self.file_sessions.remove(&session.file_id);
         session
+    }
+
+    pub fn session_initial_snapshot(
+        &self,
+        session_id: &SessionId,
+    ) -> Option<(SessionSnapshot, DocumentSnapshot)> {
+        let session = self.sessions.get(&session_id)?;
+        let session_snapshot = session.snapshot();
+        let document_snapshot = session.document_snapshot();
+        Some((session_snapshot, document_snapshot))
+    }
+
+    pub fn handle_transaction(
+        &mut self,
+        session_id: &SessionId,
+        from: &ConnectionId,
+        tx: Transaction,
+    ) -> Result<Option<Transaction>, ()> {
+        self.sessions
+            .get_mut(session_id)
+            .expect("must exist")
+            .handle_transaction(from, tx)
+    }
+
+    pub fn has_session(&mut self, session_id: &SessionId) -> bool {
+        self.sessions.contains_key(session_id)
+    }
+
+    pub fn commit_pending_transaction(
+        &mut self,
+        session_id: &SessionId,
+    ) -> Result<Option<PendingTransactionCommitResult>, PendingTransactionCommitError> {
+        self.sessions
+            .get_mut(session_id)
+            .expect("must exist")
+            .commit_pending_transaction()
     }
 }
 

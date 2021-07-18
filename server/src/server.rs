@@ -11,7 +11,7 @@ use crate::connection_tx_storage::ConnectionTxStorage;
 use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
 use crate::session::{
-    PendingTransactionCommitError, PendingTransactionCommitResult, Session, SessionBehavior,
+    PendingTransactionCommitError, PendingTransactionCommitResult, SessionBehavior,
 };
 
 pub type ServerTx = Sender<ServerCommand>;
@@ -54,13 +54,10 @@ impl Server {
                     return;
                 }
 
-                let session = self
+                let (session_snapshot, document_snapshot) = self
                     .server_state
-                    .sessions
-                    .get(&session_id)
-                    .expect("session must exist");
-                let session_snapshot = session.snapshot();
-                let document_snapshot = session.document_snapshot();
+                    .session_initial_snapshot(&session_id)
+                    .expect("must exist");
 
                 if tx
                     .send(ConnectionEvent::IdentifiableEvent(
@@ -132,9 +129,8 @@ impl Server {
             AdminCommand::GetSessionState { file_id, tx } => {
                 if let Some(session) = self
                     .server_state
-                    .file_sessions
-                    .get(&file_id)
-                    .and_then(|session_id| self.server_state.sessions.get(session_id))
+                    .get_session_id_of_file(&file_id)
+                    .and_then(|session_id| self.server_state.get_session(session_id))
                 {
                     tx.send(Ok(FileDescription::Online {
                         debug: format!("{:#?}", session),
@@ -175,14 +171,11 @@ impl Server {
             } => {
                 let is_valid_command: bool;
                 if let Some(session_id) = self.server_state.session_id(&file_id).cloned() {
-                    let session: &mut Session;
-                    if let Some(_session) = self.server_state.sessions.get_mut(&session_id) {
-                        session = _session;
-                    } else {
+                    if !self.server_state.has_session(&session_id) {
                         transmit.send(Err(())).expect("must succeed");
                         return;
                     }
-                    match session.commit_pending_transaction() {
+                    match self.server_state.commit_pending_transaction(&session_id) {
                         Ok(Some(PendingTransactionCommitResult { tx, from })) => {
                             let ack_event = SessionEvent::TransactionAck(tx.id);
                             self.connections
@@ -275,8 +268,7 @@ impl Server {
     ) -> Result<Option<SessionEvent>, SessionError> {
         let session_id = self
             .server_state
-            .connection_locations
-            .get(from)
+            .get_session_id_of_connection(from)
             .expect("must be in session")
             .clone();
         match command {
@@ -291,9 +283,9 @@ impl Server {
                 Ok(None)
             }
             SessionCommand::Transaction(tx) => {
-                let result = if let Some(session) = self.server_state.sessions.get_mut(&session_id)
-                {
-                    session.handle_transaction(from, tx.clone())
+                let result = if self.server_state.has_session(&session_id) {
+                    self.server_state
+                        .handle_transaction(&session_id, from, tx.clone())
                 } else {
                     self.leave_session(from).await;
                     return Ok(Some(SessionEvent::TerminatedBySystem));
@@ -374,7 +366,7 @@ impl Server {
             if should_terminate {
                 self.terminate_session(&session_id).await;
             } else {
-                if let Some(session) = self.server_state.sessions.get(&session_id) {
+                if let Some(session) = self.server_state.get_session(&session_id) {
                     let session_snapshot = session.snapshot();
                     self.broadcast_session_event(
                         &session_id,
