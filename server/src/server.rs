@@ -365,8 +365,8 @@ impl Server {
             let should_terminate = self
                 .server_state
                 .get_session(&session_id)
-                .expect("must exist")
-                .should_terminate();
+                .map(|s| s.should_terminate())
+                .unwrap_or(false);
             if should_terminate {
                 self.terminate_session(&session_id).await;
             } else {
