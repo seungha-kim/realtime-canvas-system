@@ -7,7 +7,7 @@ use system::{
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
 use crate::admin::{AdminCommand, FileDescription};
-use crate::connection_tx_storage::ConnectionTxStorage;
+use crate::connection_tx_storage::{ConnectionTx, ConnectionTxStorage};
 use crate::document_file::{read_document_file, write_document_file};
 use crate::server_state::ServerState;
 use crate::session::{
@@ -39,56 +39,20 @@ impl Server {
         match command {
             ConnectionCommand::Connect { tx, file_id } => {
                 let mut tx = tx.clone();
-                let session_id: SessionId;
-                let connection_id: ConnectionId;
-                if let Ok((_session_id, _connection_id)) =
-                    self.join_or_create_auto_commit_session(file_id).await
+
+                if self
+                    .join_or_create_auto_commit_session(file_id, tx.clone())
+                    .await
+                    .is_err()
                 {
-                    session_id = _session_id;
-                    connection_id = _connection_id;
-                } else {
                     // TODO: wrong connection_id
                     tx.send(ConnectionEvent::Disconnected { connection_id: 0 })
                         .await
                         .expect("must succeed");
-                    return;
                 }
-
-                let (session_snapshot, document_snapshot) = self
-                    .server_state
-                    .session_initial_snapshot(&session_id)
-                    .expect("must exist");
-
-                if tx
-                    .send(ConnectionEvent::IdentifiableEvent(
-                        IdentifiableEvent::BySystem {
-                            session_event: SessionEvent::Init {
-                                session_id: session_id.clone(),
-                                session_snapshot: session_snapshot.clone(),
-                                document_snapshot,
-                            },
-                        },
-                    ))
-                    .await
-                    .is_err()
-                {
-                    return;
-                }
-
-                self.connections.insert(connection_id, tx.clone());
-                self.connections
-                    .send(&connection_id, ConnectionEvent::Connected { connection_id })
-                    .await;
-
-                self.broadcast_session_event(
-                    &session_id,
-                    SessionEvent::SessionStateChanged(session_snapshot),
-                    Some(&connection_id),
-                )
-                .await;
             }
             ConnectionCommand::Disconnect { from } => {
-                self.disconnect_from_client(from).await;
+                self.leave_session(from, true).await;
             }
             ConnectionCommand::IdentifiableCommand {
                 from,
@@ -117,7 +81,8 @@ impl Server {
                             "Disconnecting a connection due to fatal error: {}",
                             fatal_error.reason
                         );
-                        self.disconnect_from_server(from).await;
+                        self.leave_session(from, true).await;
+                        self.disconnect_from_server(from, true).await;
                     }
                 },
             },
@@ -232,35 +197,6 @@ impl Server {
         };
     }
 
-    async fn create_session(
-        &mut self,
-        file_id: &FileId,
-        behavior: SessionBehavior,
-    ) -> Result<SessionId, ()> {
-        let document = read_document_file(&file_id).await.map_err(|_| ())?;
-        let session_id = self
-            .server_state
-            .create_session(&file_id, document, behavior)
-            .map_err(|_| ())?;
-        Ok(session_id)
-    }
-
-    async fn join_or_create_auto_commit_session(
-        &mut self,
-        file_id: &FileId,
-    ) -> Result<(SessionId, ConnectionId), ()> {
-        let (session_id, connection_id) = if self.server_state.session_id(file_id).is_some() {
-            self.server_state.join_session(file_id).map_err(|_| ())?
-        } else {
-            let document = read_document_file(file_id).await.map_err(|_| ())?;
-            self.server_state
-                .create_session(file_id, document, SessionBehavior::AutoTerminateWhenEmpty)
-                .map_err(|_| ())?;
-            self.server_state.join_session(file_id).map_err(|_| ())?
-        };
-        Ok((session_id, connection_id))
-    }
-
     async fn handle_session_command(
         &mut self,
         from: &ConnectionId,
@@ -314,6 +250,133 @@ impl Server {
             }
         }
     }
+}
+
+impl Server {
+    async fn create_session(
+        &mut self,
+        file_id: &FileId,
+        behavior: SessionBehavior,
+    ) -> Result<SessionId, ()> {
+        let document = read_document_file(&file_id).await.map_err(|_| ())?;
+        let session_id = self
+            .server_state
+            .create_session(&file_id, document, behavior)
+            .map_err(|_| ())?;
+        Ok(session_id)
+    }
+
+    async fn join_session(
+        &mut self,
+        file_id: &FileId,
+        tx: ConnectionTx,
+    ) -> Result<(SessionId, ConnectionId), ()> {
+        let (session_id, connection_id) =
+            self.server_state.join_session(file_id).map_err(|_| ())?;
+
+        let (session_snapshot, document_snapshot) = self
+            .server_state
+            .session_initial_snapshot(&session_id)
+            .expect("must exist");
+
+        self.connections.insert(connection_id.clone(), tx.clone());
+        self.connections
+            .send(&connection_id, ConnectionEvent::Connected { connection_id })
+            .await;
+        self.connections
+            .send(
+                &connection_id,
+                ConnectionEvent::IdentifiableEvent(IdentifiableEvent::BySystem {
+                    session_event: SessionEvent::Init {
+                        session_id: session_id.clone(),
+                        session_snapshot: session_snapshot.clone(),
+                        document_snapshot,
+                    },
+                }),
+            )
+            .await;
+        self.broadcast_session_event(
+            &session_id,
+            SessionEvent::SessionStateChanged(session_snapshot),
+            Some(&connection_id),
+        )
+        .await;
+        Ok((session_id, connection_id))
+    }
+
+    async fn join_or_create_auto_commit_session(
+        &mut self,
+        file_id: &FileId,
+        tx: ConnectionTx,
+    ) -> Result<(SessionId, ConnectionId), ()> {
+        if self.server_state.get_session_id_of_file(file_id).is_none() {
+            self.create_session(file_id, SessionBehavior::AutoTerminateWhenEmpty)
+                .await
+                .expect("must succeed");
+        }
+        let (session_id, connection_id) = self.join_session(file_id, tx).await?;
+        Ok((session_id, connection_id))
+    }
+
+    async fn terminate_session(&mut self, session_id: &SessionId) {
+        let session = self.server_state.terminate_session(session_id);
+        for connection_id in &session.connections {
+            self.disconnect_from_server(connection_id, false).await;
+        }
+        write_document_file(&session.file_id, session.document()).await;
+    }
+
+    async fn leave_session(&mut self, connection_id: &ConnectionId, broadcast: bool) {
+        // NOTE: ConnectionCommand::Disconnect 두 번 들어옴
+        if let Some(session_id) = self.server_state.leave_session(connection_id) {
+            self.connections.remove(connection_id);
+            let should_terminate = self
+                .server_state
+                .get_session(&session_id)
+                .map(|s| s.should_terminate())
+                .unwrap_or(false);
+            if should_terminate {
+                self.terminate_session(&session_id).await;
+            } else if broadcast {
+                self.broadcast_session_state(&session_id).await;
+            }
+        }
+    }
+
+    async fn disconnect_from_server(&mut self, connection_id: &ConnectionId, broadcast: bool) {
+        self.connections
+            .send(
+                connection_id,
+                ConnectionEvent::Disconnected {
+                    connection_id: connection_id.clone(),
+                },
+            )
+            .await;
+        self.connections.remove(connection_id);
+        if broadcast {
+            if let Some(session_id) = self
+                .server_state
+                .get_session_id_of_connection(connection_id)
+                .cloned()
+            {
+                self.broadcast_session_state(&session_id).await;
+            }
+        }
+    }
+}
+
+impl Server {
+    async fn broadcast_session_state(&mut self, session_id: &SessionId) {
+        if let Some(session) = self.server_state.get_session(&session_id) {
+            let session_snapshot = session.snapshot();
+            self.broadcast_session_event(
+                &session_id,
+                SessionEvent::SessionStateChanged(session_snapshot),
+                None,
+            )
+            .await;
+        }
+    }
 
     async fn broadcast_session_event(
         &mut self,
@@ -328,55 +391,6 @@ impl Server {
                         session_event: session_event.clone(),
                     });
                     self.connections.send(connection_id, event).await;
-                }
-            }
-        }
-    }
-
-    async fn disconnect_from_client(&mut self, connection_id: &ConnectionId) {
-        self.leave_session(connection_id).await;
-        self.connections.remove(connection_id);
-    }
-
-    async fn disconnect_from_server(&mut self, connection_id: &ConnectionId) {
-        self.connections
-            .send(
-                connection_id,
-                ConnectionEvent::Disconnected {
-                    connection_id: connection_id.clone(),
-                },
-            )
-            .await;
-        self.leave_session(connection_id).await;
-        self.connections.remove(connection_id);
-    }
-
-    async fn terminate_session(&mut self, session_id: &SessionId) {
-        self.broadcast_session_event(session_id, SessionEvent::TerminatedBySystem, None)
-            .await;
-        let session = self.server_state.terminate_session(session_id);
-        write_document_file(&session.file_id, session.document()).await;
-    }
-
-    async fn leave_session(&mut self, connection_id: &ConnectionId) {
-        // NOTE: ConnectionCommand::Disconnect 두 번 들어옴
-        if let Some(session_id) = self.server_state.leave_session(connection_id) {
-            let should_terminate = self
-                .server_state
-                .get_session(&session_id)
-                .map(|s| s.should_terminate())
-                .unwrap_or(false);
-            if should_terminate {
-                self.terminate_session(&session_id).await;
-            } else {
-                if let Some(session) = self.server_state.get_session(&session_id) {
-                    let session_snapshot = session.snapshot();
-                    self.broadcast_session_event(
-                        &session_id,
-                        SessionEvent::SessionStateChanged(session_snapshot),
-                        Some(connection_id),
-                    )
-                    .await;
                 }
             }
         }

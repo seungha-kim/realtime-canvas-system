@@ -70,7 +70,6 @@ pub enum SessionEvent {
     TransactionAck(TransactionId),
     TransactionNack(TransactionId, RollbackReason),
     OthersTransaction(Transaction),
-    TerminatedBySystem,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
