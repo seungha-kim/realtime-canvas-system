@@ -1,8 +1,8 @@
 use tokio::sync::mpsc::{channel, Sender};
 
 use system::{
-    CommandResult, ConnectionId, FileId, IdentifiableCommand, IdentifiableEvent, LivePointerEvent,
-    RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
+    CommandResult, ConnectionId, FatalError, FileId, IdentifiableCommand, IdentifiableEvent,
+    LivePointerEvent, RollbackReason, SessionCommand, SessionError, SessionEvent, SessionId,
 };
 
 use super::connection::{ConnectionCommand, ConnectionEvent};
@@ -266,11 +266,18 @@ impl Server {
         from: &ConnectionId,
         command: &SessionCommand,
     ) -> Result<Option<SessionEvent>, SessionError> {
-        let session_id = self
+        let session_id = if let Some(session_id) = self
             .server_state
             .get_session_id_of_connection(from)
-            .expect("must be in session")
-            .clone();
+            .cloned()
+        {
+            session_id
+        } else {
+            return Err(SessionError::FatalError(FatalError {
+                reason: "session does not exist".into(),
+            }));
+        };
+
         match command {
             SessionCommand::LivePointer(live_pointer) => {
                 let session_event = SessionEvent::LivePointer(LivePointerEvent {
@@ -283,13 +290,9 @@ impl Server {
                 Ok(None)
             }
             SessionCommand::Transaction(tx) => {
-                let result = if self.server_state.has_session(&session_id) {
-                    self.server_state
-                        .handle_transaction(&session_id, from, tx.clone())
-                } else {
-                    self.leave_session(from).await;
-                    return Ok(Some(SessionEvent::TerminatedBySystem));
-                };
+                let result = self
+                    .server_state
+                    .handle_transaction(&session_id, from, tx.clone());
 
                 match result {
                     Ok(Some(tx)) => {
