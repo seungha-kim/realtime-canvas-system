@@ -12,6 +12,7 @@ pub struct SessionState {
     document: ClientFollowerDocument,
     invalidated_object_ids: HashSet<ObjectId>,
     pending_live_pointer_events: VecDeque<LivePointerEvent>,
+    terminated: bool,
 }
 
 impl SessionState {
@@ -22,6 +23,7 @@ impl SessionState {
             session_snapshot_invalidated: true,
             invalidated_object_ids: HashSet::new(),
             pending_live_pointer_events: VecDeque::new(),
+            terminated: false,
         }
     }
 
@@ -48,6 +50,10 @@ impl SessionState {
                     log::warn!("live pointer events must be consumed")
                 }
                 self.pending_live_pointer_events.push_back(live_pointer);
+                Ok(())
+            }
+            SessionEvent::TerminatedBySystem => {
+                self.terminated = true;
                 Ok(())
             }
             _ => unimplemented!(),
@@ -138,5 +144,9 @@ impl SessionState {
             .materialize_object(&object_id)
             .map(|m| serde_json::to_string(&m).expect("must succeed"))
             .ok()
+    }
+
+    pub fn terminated(&self) -> bool {
+        self.terminated
     }
 }

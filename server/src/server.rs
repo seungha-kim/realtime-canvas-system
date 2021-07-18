@@ -291,12 +291,14 @@ impl Server {
                 Ok(None)
             }
             SessionCommand::Transaction(tx) => {
-                let result = self
-                    .server_state
-                    .sessions
-                    .get_mut(&session_id)
-                    .expect("must exist")
-                    .handle_transaction(from, tx.clone());
+                let result = if let Some(session) = self.server_state.sessions.get_mut(&session_id)
+                {
+                    session.handle_transaction(from, tx.clone())
+                } else {
+                    self.leave_session(from).await;
+                    return Ok(Some(SessionEvent::TerminatedBySystem));
+                };
+
                 match result {
                     Ok(Some(tx)) => {
                         let session_event = SessionEvent::TransactionAck(tx.id.clone());
@@ -355,6 +357,8 @@ impl Server {
     }
 
     async fn terminate_session(&mut self, session_id: &SessionId) {
+        self.broadcast_session_event(session_id, SessionEvent::TerminatedBySystem, None)
+            .await;
         let session = self.server_state.terminate_session(session_id);
         write_document_file(&session.file_id, session.document()).await;
     }

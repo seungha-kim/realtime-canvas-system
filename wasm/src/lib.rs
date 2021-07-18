@@ -174,4 +174,8 @@ impl CanvasSystem {
     pub fn consume_live_pointer_events(&mut self) -> String {
         self.session.consume_live_pointer_events()
     }
+
+    pub fn terminated(&self) -> bool {
+        self.session.terminated()
+    }
 }
