@@ -52,10 +52,6 @@ impl SessionState {
                 self.pending_live_pointer_events.push_back(live_pointer);
                 Ok(())
             }
-            SessionEvent::TerminatedBySystem => {
-                self.terminated = true;
-                Ok(())
-            }
             _ => unimplemented!(),
         }
     }
